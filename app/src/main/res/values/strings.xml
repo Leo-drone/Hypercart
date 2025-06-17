@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Hypercart</string>
+    <string name="register_title">Créer un compte</string>
+    <string name="register_subtitle">Entrez vos informations personnelles pour créer un compte</string>
+    <string name="login_subtitle">Connectez-vous à votre compte</string>
+    <string name="password">Mot de passe</string>
+    <string name="sign_up">S\'inscrire</string>
+    <string name="or">Ou</string>
+    <string name="sign_in_with_google">Se connecter avec Google</string>
+    <string name="no_account">Vous n\'avez pas de compte ?</string>
+    <string name="already_have_account">Vous avez déjà un compte ?</string>
+    <string name="log_in">Se connecter</string>
+    <string name="email">Adresse e-mail</string>
+    <string name="password_placeholder">Entrez votre mot de passe</string>
+    <string name="email_placeholder">Entrez votre adresse e-mail</string>
+    <string name="empty_forms">Veuillez remplir tous les champs</string>
+    <string name="invalid_email">Adresse e-mail invalide</string>
+    <string name="unknow_error">Erreur inconnue lors de la connexion</string>
+    <string name="successful_registration">Inscription validée, veuillez vérifier votre adresse mail</string>
+
+</resources>
