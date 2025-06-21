@@ -16,6 +16,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -75,7 +76,12 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.navigation.compose.android)
+    implementation(libs.core.ktx)
     testImplementation(libs.junit)
+    testImplementation(project(":app"))
+    testImplementation(project(":app"))
+    testImplementation(project(":app"))
+    androidTestImplementation("org.mockito:mockito-core:5.18.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -86,5 +92,13 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.8.2")
     implementation("androidx.compose.material:material:1.8.2")
 
+    // Tests unitaires
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.7")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("org.robolectric:robolectric:4.10.3")
+
+// Tests UI
+    androidTestImplementation("androidx.navigation:navigation-testing:2.7.0")
 
 }

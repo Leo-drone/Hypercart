@@ -1,7 +1,6 @@
 package com.hypercart
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -47,6 +46,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -67,9 +67,9 @@ import com.hypercart.ui.theme.black
 import com.hypercart.ui.theme.blueSkye
 import com.hypercart.ui.theme.darkGray
 import com.hypercart.ui.theme.night
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 data class Star(val x: Float, val y: Float, val radius: Float)
@@ -81,20 +81,23 @@ class MainActivity : ComponentActivity() {
 
 
         val token = intent?.data?.getQueryParameter("token")
+        val email = intent?.data?.getQueryParameter("email")
         setContent {
-            HypercartApp(startToken = token)
+            HypercartApp(startToken = token, email = email)
         }
     }
 }
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun HypercartApp(startToken: String? = null) {
+fun HypercartApp(startToken: String? = null, email: String? = null) {
     val navController: NavHostController = rememberNavController()
 
     LaunchedEffect(startToken) {
-        if (!startToken.isNullOrEmpty()) {
-            navController.navigate("new_password?token=$startToken")
+        if (!startToken.isNullOrEmpty() && !email.isNullOrEmpty()) {
+            navController.navigate("new_password?token=$startToken&email=$email") {
+                popUpTo("login") { inclusive = true }
+            }
         }
     }
 
@@ -114,7 +117,9 @@ fun HypercartApp(startToken: String? = null) {
         }
 
         composable("reset_password") {
-            ResetPasswordScreen(onBack = { navController.popBackStack() })
+            ResetPasswordScreen(onBack = { navController.popBackStack() },
+                navController = navController,
+                onRegisterClick = { navController.navigate("register") })
         }
 
         composable(
@@ -128,15 +133,18 @@ fun HypercartApp(startToken: String? = null) {
         }
 
         composable(
-            route = "new_password?token={token}",
-            arguments = listOf(navArgument("token") { defaultValue = "" })
+            route = "new_password?token={token}&email={email}",
+            arguments = listOf(
+                navArgument("token") { defaultValue = "" },
+                navArgument("email") { defaultValue = "" }
+            ),
         ) { backStackEntry ->
             val token = backStackEntry.arguments?.getString("token") ?: ""
-            Log.i("debug", "Token received: $token")
+            val emailAdress = backStackEntry.arguments?.getString("email") ?: ""
             NewPasswordScreen(
                 token = token,
-                onPasswordReset = { navController.navigate("login") },
-                onError = { /* Affiche une erreur */ }
+                onPasswordReset = { navController.navigate("login")},
+                email = emailAdress
             )
         }
     }
@@ -147,7 +155,7 @@ fun isValidEmail(email: String): Boolean {
 }
 
 @Composable
-fun LoginScreen(navController: NavController?) {
+    fun LoginScreen(navController: NavController?) {
     var emailValue by remember { mutableStateOf("") }
     var passwordValue by remember { mutableStateOf("") }
 
@@ -158,6 +166,14 @@ fun LoginScreen(navController: NavController?) {
 
     // Un seul état pour tous les messages d’erreur
     var dialogMessage by remember { mutableStateOf<String?>(null) }
+
+    val email_needed = stringResource(R.string.email_needed)
+    val invalid_email  = stringResource(R.string.invalid_email)
+    val password_needed = stringResource(R.string.password_needed)
+    val account_not_verified = stringResource(R.string.account_not_verified)
+    val unknownError = stringResource(R.string.unknown_error)
+    val login_fail = stringResource(R.string.login_fail)
+
 
     Scaffold { padding ->
         Box(
@@ -257,13 +273,13 @@ fun LoginScreen(navController: NavController?) {
                         keyboardController?.hide()
                         when {
                             emailValue.isBlank() -> {
-                                dialogMessage = "Email requis"
+                                dialogMessage = email_needed
                             }
                             !isValidEmail(emailValue) -> {
-                                dialogMessage = "Email invalide"
+                                dialogMessage = invalid_email
                             }
                             passwordValue.isBlank() -> {
-                                dialogMessage = "Mot de passe requis"
+                                dialogMessage = password_needed
                             }
                             else -> {
                                 authManager.signInWithEmail(emailValue, passwordValue)
@@ -275,12 +291,12 @@ fun LoginScreen(navController: NavController?) {
                                                 passwordValue = ""
                                             }
                                             is AuthResponse.Error -> {
-                                                val msg = result.message ?: "Erreur inconnue"
+                                                val msg = result.message ?: unknownError
                                                 dialogMessage = when {
-                                                    msg.contains("non vérifié", ignoreCase = true) -> "Compte non vérifié"
+                                                    msg.contains("non vérifié", ignoreCase = true) -> account_not_verified
                                                     msg.contains("identifiants", ignoreCase = true) ||
                                                             msg.contains("incorrect", ignoreCase = true) ||
-                                                            msg.contains("échoué", ignoreCase = true) -> "Email ou mot de passe incorrect"
+                                                            msg.contains("échoué", ignoreCase = true) -> login_fail
                                                     else -> msg
                                                 }
                                                 passwordValue = ""
@@ -328,26 +344,19 @@ fun LoginScreen(navController: NavController?) {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Connexion Google
-                GoogleSignInButton(
-                    onClick = {
-                        keyboardController?.hide()
-                        authManager.loginGoogleUser()
-                            .onEach { result ->
-                                when (result) {
-                                    is AuthResponse.Success -> {
-                                        navController?.navigate("products")
-                                        emailValue = ""
-                                        passwordValue = ""
-                                    }
-                                    is AuthResponse.Error -> {
-                                        val msg = result.message ?: "Erreur inconnue"
-                                        dialogMessage = msg
-                                        passwordValue = ""
-                                    }
-                                }
-                            }
-                            .launchIn(coroutineScope)
-                    }
+                GoogleSignInButtonWithLogic(
+                    authManager = authManager,
+                    coroutineScope = coroutineScope,
+                    navController = navController,
+                    onSuccess = {
+                        emailValue = ""
+                        passwordValue = ""
+                    },
+                    onError = { msg ->
+                        dialogMessage = msg
+                        passwordValue = ""
+                    },
+                    keyboardController = keyboardController
                 )
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -388,6 +397,35 @@ fun LoginScreen(navController: NavController?) {
     )
 }
 
+@Composable
+fun GoogleSignInButtonWithLogic(
+    authManager: AuthManager,
+    coroutineScope: CoroutineScope,
+    navController: NavController?,
+    onSuccess: () -> Unit = {},
+    onError: (String) -> Unit = {},
+    keyboardController: SoftwareKeyboardController? = null
+) {
+    GoogleSignInButton(
+        onClick = {
+            keyboardController?.hide()
+            authManager.loginGoogleUser()
+                .onEach { result ->
+                    when (result) {
+                        is AuthResponse.Success -> {
+                            navController?.navigate("products")
+                            onSuccess()
+                        }
+                        is AuthResponse.Error -> {
+                            val msg = result.message ?: ""
+                            onError(msg)
+                        }
+                    }
+                }
+                .launchIn(coroutineScope)
+        }
+    )
+}
 
 @Composable
 fun GradientScreen() {
@@ -453,7 +491,7 @@ fun LoginPreview() {
 }
 
 @Composable
-private fun GoogleSignInButton(onClick: () -> Unit) {
+fun GoogleSignInButton(onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(10.dp),
@@ -475,124 +513,5 @@ private fun GoogleSignInButton(onClick: () -> Unit) {
     }
 }
 
-@Composable
-fun ResetPasswordScreen(
-    onBack: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Réinitialiser le mot de passe", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(16.dp))
-        TextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                coroutineScope.launch {
-                    resetPasswordWithSupabase(email)
-                    successMessage = "Un email de réinitialisation a été envoyé."
-                    errorMessage = null
 
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Envoyer l'email")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Retour")
-        }
-        if (successMessage != null) {
-            Text(successMessage!!, color = MaterialTheme.colorScheme.primary)
-        }
-    }
-    ErrorDialog(message = errorMessage, onDismiss = { errorMessage = null })
-}
-
-@Composable
-fun NewPasswordScreen(
-    token: String,
-    onPasswordReset: () -> Unit,
-    onError: (String) -> Unit
-) {
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Nouveau mot de passe", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(16.dp))
-        TextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Nouveau mot de passe") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        TextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("Confirmer le mot de passe") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                if (password != confirmPassword) {
-                    errorMessage = "Les mots de passe ne correspondent pas."
-                    return@Button
-                }
-                loading = true
-                coroutineScope.launch {
-                    val error = updatePasswordWithSupabase(newPassword = password, accessToken = token)
-                    loading = false
-                    if (error == null) {
-                        successMessage = "Mot de passe mis à jour avec succès."
-                        onPasswordReset()
-                    } else {
-                        errorMessage = when {
-                            error.contains("length", ignoreCase = true) -> "Le mot de passe est trop court (au moins 8 caractères)."
-                            error.contains("unknown", ignoreCase = true) -> "Erreur inconnue, réessayez."
-                            error.contains("token", ignoreCase = true) -> "Lien de réinitialisation invalide ou expiré."
-                            else -> error
-                        }
-                    }
-                }
-            },
-            enabled = !loading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (loading) "Chargement..." else "Valider")
-        }
-
-        if (errorMessage != null) {
-            Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
-        }
-        if (successMessage != null) {
-            Text(successMessage!!, color = MaterialTheme.colorScheme.primary)
-        }
-    }
-}

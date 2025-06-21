@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -74,8 +75,8 @@ fun ErrorDialog(message: String?, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun SuccessDialog(showDialog: Boolean, onDismiss: () -> Unit) {
-    if (showDialog) {
+fun SuccessDialog(message: String?, onDismiss: () -> Unit) {
+    if (message != null) {
         Dialog(
             onDismissRequest = onDismiss,
             properties = DialogProperties(dismissOnClickOutside = true)
@@ -101,7 +102,7 @@ fun SuccessDialog(showDialog: Boolean, onDismiss: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = stringResource(R.string.successful_registration),
+                        text = message,
                         color = Color.Black,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -115,7 +116,7 @@ fun SuccessDialog(showDialog: Boolean, onDismiss: () -> Unit) {
                             contentColor = Color.Black,
                         )
                     ) {
-                        Text("OK")
+                        Text(stringResource(R.string.OK))
                     }
                 }
             }

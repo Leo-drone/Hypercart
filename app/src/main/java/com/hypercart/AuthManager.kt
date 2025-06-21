@@ -8,6 +8,7 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
@@ -15,7 +16,7 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.createSupabaseClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.io.IOException
+import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -27,8 +28,8 @@ sealed interface AuthResponse {
 class AuthManager(private val context: Context) {
 
     private val supabase = createSupabaseClient(
-        supabaseUrl = "https://egrrgwnbamdezxkhxmrd.supabase.co",
-        supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVncnJnd25iYW1kZXp4a2h4bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU2NzAsImV4cCI6MjA2NDMwMTY3MH0.Btffag13ZrSH6XD1C246HmjqbKcb37xg9BbxUfzd9aA"
+        supabaseUrl = SupabaseConfig.SUPABASE_URL,
+        supabaseKey = SupabaseConfig.SUPABASE_KEY
     ) {
         install(Auth)
     }
@@ -129,7 +130,7 @@ class AuthManager(private val context: Context) {
         Log.i("AuthManager", "Hashed Nonce: $hashedNonce")
 
         val googleIdOption = GetGoogleIdOption.Builder()
-            .setServerClientId("80305142848-j5j09u3v3lkn4c2q6jaimk4rv761t5ra.apps.googleusercontent.com")
+            .setServerClientId(SupabaseConfig.GOOGLE_CLIENT_ID)
             .setNonce(hashedNonce)
             .setFilterByAuthorizedAccounts(false)
             .build()
@@ -141,7 +142,10 @@ class AuthManager(private val context: Context) {
         val credentialManager = CredentialManager.create(context)
 
         try {
-            val result = credentialManager.getCredential(context, request)
+            val result = credentialManager.getCredential(
+                context = context,
+                request = request
+            )
             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
             val googleIdToken = googleIdTokenCredential.idToken
 
@@ -176,32 +180,34 @@ class AuthManager(private val context: Context) {
     }
 }
 
-suspend fun resetPasswordWithSupabase( email: String) {
+suspend fun resetPasswordWithSupabase(email: String) {
     val supabase = createSupabaseClient(
-        supabaseUrl = "https://egrrgwnbamdezxkhxmrd.supabase.co",
-        supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVncnJnd25iYW1kZXp4a2h4bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU2NzAsImV4cCI6MjA2NDMwMTY3MH0.Btffag13ZrSH6XD1C246HmjqbKcb37xg9BbxUfzd9aA"
+        supabaseUrl = SupabaseConfig.SUPABASE_URL,
+        supabaseKey = SupabaseConfig.SUPABASE_KEY
     ) {
         install(Auth)
     }
 
     supabase.auth.resetPasswordForEmail(
         email = email,
-        redirectUrl = "https://hypercart.com/reset-password"
+        redirectUrl = SupabaseConfig.RESET_PASSWORD_REDIRECT_URL
     )
     Log.i("AuthManager", "Reset Password envoyé pour $email")
 }
 
 
-suspend fun updatePasswordWithSupabase(newPassword: String, accessToken:String): String? {
+suspend fun updatePasswordWithSupabase(newPassword: String, accessToken: String, emailAdress: String): String? {
     return try {
         val supabase = createSupabaseClient(
-            supabaseUrl = "https://egrrgwnbamdezxkhxmrd.supabase.co",
-            supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVncnJnd25iYW1kZXp4a2h4bXJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MjU2NzAsImV4cCI6MjA2NDMwMTY3MH0.Btffag13ZrSH6XD1C246HmjqbKcb37xg9BbxUfzd9aA"
-        ) {
-            install(Auth)
-        }
+            supabaseUrl = SupabaseConfig.SUPABASE_URL,
+            supabaseKey = SupabaseConfig.SUPABASE_KEY
+        ) { install(Auth) }
 
-        supabase.auth.retrieveUser(accessToken)
+        supabase.auth.verifyEmailOtp(
+            type = OtpType.Email.EMAIL,
+            email = emailAdress,
+            token = accessToken
+        )
 
         supabase.auth.updateUser {
             password = newPassword

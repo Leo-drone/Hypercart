@@ -162,7 +162,12 @@ fun RegisterScreen(navController: NavController?) {
                                 dialogMessage = "Mot de passe requis"
                             }
                             passwordValue.length < 8 -> {
-                                dialogMessage = "Mot de passe trop court"
+                                dialogMessage = "Le mot de passe doit contenir au moins 8 caractères"
+                            }
+                            !passwordValue.any { it.isLowerCase() } ||
+                            !passwordValue.any { it.isUpperCase() } ||
+                            !passwordValue.any { it.isDigit() } -> {
+                                dialogMessage = "Le mot de passe doit contenir une majuscule, une minuscule et un chiffre"
                             }
                             else -> {
                                 authManager.signUpWithEmail(emailValue, passwordValue)
@@ -227,13 +232,15 @@ fun RegisterScreen(navController: NavController?) {
     }
 
     // Dialog succès inscription
-    SuccessDialog(
-        showDialog = showSuccessDialog,
-        onDismiss = {
-            showSuccessDialog = false
-            navController?.navigate("login")
-        }
-    )
+    if (showSuccessDialog) {
+        SuccessDialog(
+            message = stringResource(R.string.successful_registration),
+            onDismiss = {
+                showSuccessDialog = false
+                navController?.navigate("login")
+            }
+        )
+    }
 
     // Dialog pour toutes les erreurs
     ErrorDialog(

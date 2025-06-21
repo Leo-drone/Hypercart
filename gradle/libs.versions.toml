@@ -17,9 +17,11 @@ appcompat = "1.7.0"
 material = "1.12.0"
 activity = "1.10.1"
 constraintlayout = "2.1.4"
+mockitoKotlin = "5.1"
 navigationComposeJvmstubs = "2.9.0"
 navigationTestingAndroid = "2.9.0"
 navigationComposeAndroid = "2.9.0"
+coreKtxVersion = "1.6.1"
 
 [libraries]
 # Google
@@ -29,6 +31,7 @@ googleid = { module = "com.google.android.libraries.identity.googleid:googleid",
 
 # Supabase
 auth-kt = { module = "io.github.jan-tennert.supabase:auth-kt" }
+mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "bom" }
 
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
@@ -56,6 +59,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-navigation-compose-jvmstubs = { group = "androidx.navigation", name = "navigation-compose-jvmstubs", version.ref = "navigationComposeJvmstubs" }
 androidx-navigation-testing-android = { group = "androidx.navigation", name = "navigation-testing-android", version.ref = "navigationTestingAndroid" }
 androidx-navigation-compose-android = { group = "androidx.navigation", name = "navigation-compose-android", version.ref = "navigationComposeAndroid" }
+core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
