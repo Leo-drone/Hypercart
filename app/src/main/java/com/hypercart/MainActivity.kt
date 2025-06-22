@@ -60,8 +60,12 @@ import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.google.accompanist.navigation.animation.AnimatedNavHost
 import com.google.accompanist.navigation.animation.composable
+import com.hypercart.config.SecureConfig
+import com.hypercart.navigation.NavRoutes
+import com.hypercart.ui.screens.LoginScreen
 import com.hypercart.ui.theme.HypercartTheme
 import com.hypercart.ui.theme.black
 import com.hypercart.ui.theme.blueSkye
@@ -79,9 +83,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Initialize secure configuration
+        SecureConfig.initialize(this)
 
         val token = intent?.data?.getQueryParameter("token")
         val email = intent?.data?.getQueryParameter("email")
+        
         setContent {
             HypercartApp(startToken = token, email = email)
         }
@@ -93,59 +100,66 @@ class MainActivity : ComponentActivity() {
 fun HypercartApp(startToken: String? = null, email: String? = null) {
     val navController: NavHostController = rememberNavController()
 
-    LaunchedEffect(startToken) {
+    // Handle deep link for password reset
+    androidx.compose.runtime.LaunchedEffect(startToken) {
         if (!startToken.isNullOrEmpty() && !email.isNullOrEmpty()) {
-            navController.navigate("new_password?token=$startToken&email=$email") {
-                popUpTo("login") { inclusive = true }
+            navController.navigate(NavRoutes.NewPassword.createRoute(startToken, email)) {
+                popUpTo(NavRoutes.Login.route) { inclusive = true }
             }
         }
     }
 
-    AnimatedNavHost(
-        navController = navController,
-        startDestination = "login"
-    ) {
-        composable(
-            route = "login?message={message}",
-            arguments = listOf(navArgument("message") { defaultValue = "" })
-        ) { backStackEntry ->
-            LoginScreen(navController)
-        }
-
-        composable("products") {
-            ProductListScreen()
-        }
-
-        composable("reset_password") {
-            ResetPasswordScreen(onBack = { navController.popBackStack() },
-                navController = navController,
-                onRegisterClick = { navController.navigate("register") })
-        }
-
-        composable(
-            route = "register",
-            enterTransition = { fadeIn(animationSpec = tween(1000)) },
-            exitTransition = { fadeOut(animationSpec = tween(700)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(800)) },
-            popExitTransition = { fadeOut(animationSpec = tween(500)) }
+    HypercartTheme {
+        AnimatedNavHost(
+            navController = navController,
+            startDestination = NavRoutes.Login.route
         ) {
-            RegisterScreen(navController)
-        }
+            composable(route = NavRoutes.Login.route) {
+                LoginScreen(navController)
+            }
 
-        composable(
-            route = "new_password?token={token}&email={email}",
-            arguments = listOf(
-                navArgument("token") { defaultValue = "" },
-                navArgument("email") { defaultValue = "" }
-            ),
-        ) { backStackEntry ->
-            val token = backStackEntry.arguments?.getString("token") ?: ""
-            val emailAdress = backStackEntry.arguments?.getString("email") ?: ""
-            NewPasswordScreen(
-                token = token,
-                onPasswordReset = { navController.navigate("login")},
-                email = emailAdress
-            )
+            composable(route = NavRoutes.Products.route) {
+                ProductListScreen()
+            }
+
+            composable(route = NavRoutes.ResetPassword.route) {
+                ResetPasswordScreen(
+                    onBack = { navController.popBackStack() },
+                    navController = navController,
+                    onRegisterClick = { navController.navigate(NavRoutes.Register.route) }
+                )
+            }
+
+            composable(
+                route = NavRoutes.Register.route,
+                enterTransition = { fadeIn(animationSpec = tween(1000)) },
+                exitTransition = { fadeOut(animationSpec = tween(700)) },
+                popEnterTransition = { fadeIn(animationSpec = tween(800)) },
+                popExitTransition = { fadeOut(animationSpec = tween(500)) }
+            ) {
+                RegisterScreen(navController)
+            }
+
+            composable(
+                route = NavRoutes.NewPassword.route + "?token={token}&email={email}",
+                arguments = listOf(
+                    navArgument(NavRoutes.NewPassword.TOKEN_ARG) { defaultValue = "" },
+                    navArgument(NavRoutes.NewPassword.EMAIL_ARG) { defaultValue = "" }
+                ),
+                deepLinks = listOf(
+                    navDeepLink {
+                        uriPattern = "https://hypercart.com/reset-password?token={token}&email={email}"
+                    }
+                )
+            ) { backStackEntry ->
+                val token = backStackEntry.arguments?.getString(NavRoutes.NewPassword.TOKEN_ARG) ?: ""
+                val emailAddress = backStackEntry.arguments?.getString(NavRoutes.NewPassword.EMAIL_ARG) ?: ""
+                NewPasswordScreen(
+                    token = token,
+                    onPasswordReset = { navController.navigate(NavRoutes.Login.route) },
+                    email = emailAddress
+                )
+            }
         }
     }
 }
@@ -164,7 +178,7 @@ fun isValidEmail(email: String): Boolean {
     val coroutineScope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Un seul état pour tous les messages d’erreur
+    // Un seul état pour tous les messages d'erreur
     var dialogMessage by remember { mutableStateOf<String?>(null) }
 
     val email_needed = stringResource(R.string.email_needed)
@@ -255,7 +269,7 @@ fun isValidEmail(email: String): Boolean {
                         modifier = Modifier.fillMaxWidth()
                     )
                     TextButton(
-                        onClick = { navController?.navigate("reset_password") },
+                        onClick = { navController?.navigate(NavRoutes.ResetPassword.route) },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(
@@ -286,7 +300,7 @@ fun isValidEmail(email: String): Boolean {
                                     .onEach { result ->
                                         when (result) {
                                             is AuthResponse.Success -> {
-                                                navController?.navigate("products")
+                                                navController?.navigate(NavRoutes.Products.route)
                                                 emailValue = ""
                                                 passwordValue = ""
                                             }
@@ -363,7 +377,7 @@ fun isValidEmail(email: String): Boolean {
 
                 // Lien vers inscription
                 TextButton(onClick = {
-                    navController?.navigate("register")
+                    navController?.navigate(NavRoutes.Register.route)
                 }) {
                     Text(
                         text = buildAnnotatedString {
@@ -413,7 +427,7 @@ fun GoogleSignInButtonWithLogic(
                 .onEach { result ->
                     when (result) {
                         is AuthResponse.Success -> {
-                            navController?.navigate("products")
+                            navController?.navigate(NavRoutes.Products.route)
                             onSuccess()
                         }
                         is AuthResponse.Error -> {
@@ -448,7 +462,7 @@ fun GradientScreen() {
 
 @Composable
 fun StarField(numberOfStars: Int, modifier: Modifier = Modifier) {
-    val stars = remember {
+    val stars = androidx.compose.runtime.remember {
         List(numberOfStars) {
             Star(
                 x = Random.nextFloat(),

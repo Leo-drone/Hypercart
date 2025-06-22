@@ -23,6 +23,19 @@ navigationTestingAndroid = "2.9.0"
 navigationComposeAndroid = "2.9.0"
 coreKtxVersion = "1.6.1"
 
+# Architecture Components
+lifecycleViewmodelCompose = "2.7.0"
+lifecycleRuntimeCompose = "2.7.0"
+datastorePreferences = "1.0.0"
+
+# Compose
+composeFoundation = "1.6.1"
+composeMaterial = "1.6.1"
+composeMaterialIcons = "1.6.1"
+
+# Navigation
+accompanistNavigation = "0.33.2-alpha"
+
 [libraries]
 # Google
 androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
@@ -36,8 +49,7 @@ supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "b
 
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 
-
-
+# Android Core
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -60,6 +72,19 @@ androidx-navigation-compose-jvmstubs = { group = "androidx.navigation", name = "
 androidx-navigation-testing-android = { group = "androidx.navigation", name = "navigation-testing-android", version.ref = "navigationTestingAndroid" }
 androidx-navigation-compose-android = { group = "androidx.navigation", name = "navigation-compose-android", version.ref = "navigationComposeAndroid" }
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
+
+# Architecture Components
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
+
+# Compose
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
+androidx-compose-material = { group = "androidx.compose.material", name = "material", version.ref = "composeMaterial" }
+androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "composeMaterialIcons" }
+
+# Navigation
+accompanist-navigation-animation = { group = "com.google.accompanist", name = "accompanist-navigation-animation", version.ref = "accompanistNavigation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
