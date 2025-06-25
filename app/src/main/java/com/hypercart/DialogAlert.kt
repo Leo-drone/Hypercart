@@ -123,3 +123,24 @@ fun SuccessDialog(message: String?, onDismiss: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun DialogAlert(
+    message: String,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onConfirm,
+        title = {
+            Text(text = "Information")
+        },
+        text = {
+            Text(text = message)
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("OK")
+            }
+        }
+    )
+}

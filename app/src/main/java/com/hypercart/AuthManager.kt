@@ -214,6 +214,6 @@ suspend fun updatePasswordWithSupabase(newPassword: String, accessToken: String,
         }
         return null
     } catch (e: Exception) {
-        e.localizedMessage ?: "Erreur inconnue"
+        "Impossible de mettre à jour le mot de passe. Veuillez réessayer."
     }
 }

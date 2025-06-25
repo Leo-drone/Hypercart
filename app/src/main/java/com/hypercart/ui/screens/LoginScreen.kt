@@ -69,7 +69,7 @@ fun LoginScreen(
     // Navigation effects
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            navController?.navigate(NavRoutes.Products.route) {
+            navController?.navigate(NavRoutes.Home.route) {
                 popUpTo(NavRoutes.Login.route) { inclusive = true }
             }
             viewModel.resetSuccess()

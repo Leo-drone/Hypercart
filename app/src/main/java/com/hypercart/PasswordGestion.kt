@@ -130,7 +130,7 @@ fun ResetPasswordScreen(
                             errorMessage = null
                             showSuccessDialog = true
                         } catch (e: Exception) {
-                            errorMessage = "Erreur lors de l'envoi de l'email"
+                            errorMessage = "Impossible d'envoyer l'email de réinitialisation. Veuillez réessayer."
                         }
                     }
                 },

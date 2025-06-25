@@ -5,6 +5,7 @@ coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
+kotlinxSerializationJson = "1.8.0"
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2024.04.01"
@@ -44,6 +45,8 @@ googleid = { module = "com.google.android.libraries.identity.googleid:googleid",
 
 # Supabase
 auth-kt = { module = "io.github.jan-tennert.supabase:auth-kt" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+postgrest-kt = { module = "io.github.jan-tennert.supabase:postgrest-kt" }
 mockito-kotlin = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockitoKotlin" }
 supabase-bom = { module = "io.github.jan-tennert.supabase:bom", version.ref = "bom" }
 

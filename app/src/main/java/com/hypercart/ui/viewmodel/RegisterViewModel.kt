@@ -67,26 +67,34 @@ class RegisterViewModel(
         _uiState.value = currentState.copy(isLoading = true, errorMessage = null)
         
         viewModelScope.launch {
-            authRepository.signUpWithEmail(currentState.email, currentState.password)
-                .collect { result ->
-                    when (result) {
-                        is AuthResponse.Success -> {
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                isSuccess = true,
-                                email = "",
-                                password = ""
-                            )
-                        }
-                        is AuthResponse.Error -> {
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                errorMessage = result.message ?: "Erreur inconnue",
-                                password = ""
-                            )
+            try {
+                authRepository.signUpWithEmail(currentState.email, currentState.password)
+                    .collect { result ->
+                        when (result) {
+                            is AuthResponse.Success -> {
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    isSuccess = true,
+                                    email = "",
+                                    password = ""
+                                )
+                            }
+                            is AuthResponse.Error -> {
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    errorMessage = result.message ?: "Erreur inconnue",
+                                    password = ""
+                                )
+                            }
                         }
                     }
-                }
+            } catch (e: Exception) {
+                _uiState.value = currentState.copy(
+                    isLoading = false,
+                    errorMessage = "Une erreur est survenue, veuillez réessayer.",
+                    password = ""
+                )
+            }
         }
     }
     

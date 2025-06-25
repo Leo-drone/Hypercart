@@ -57,28 +57,36 @@ class LoginViewModel(
         _uiState.value = currentState.copy(isLoading = true, errorMessage = null)
         
         viewModelScope.launch {
-            authRepository.signInWithEmail(currentState.email, currentState.password)
-                .collect { result ->
-                    when (result) {
-                        is AuthResponse.Success -> {
-                            // Save session
-                            sessionManager.saveSession(currentState.email, "user_id")
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                isSuccess = true,
-                                email = "",
-                                password = ""
-                            )
-                        }
-                        is AuthResponse.Error -> {
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                errorMessage = result.message ?: "Erreur inconnue",
-                                password = ""
-                            )
+            try {
+                authRepository.signInWithEmail(currentState.email, currentState.password)
+                    .collect { result ->
+                        when (result) {
+                            is AuthResponse.Success -> {
+                                // Save session
+                                sessionManager.saveSession(currentState.email, "user_id")
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    isSuccess = true,
+                                    email = "",
+                                    password = ""
+                                )
+                            }
+                            is AuthResponse.Error -> {
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    errorMessage = result.message ?: "Erreur inconnue",
+                                    password = ""
+                                )
+                            }
                         }
                     }
-                }
+            } catch (e: Exception) {
+                _uiState.value = currentState.copy(
+                    isLoading = false,
+                    errorMessage = "Une erreur est survenue, veuillez réessayer.",
+                    password = ""
+                )
+            }
         }
     }
     
@@ -87,28 +95,36 @@ class LoginViewModel(
         _uiState.value = currentState.copy(isLoading = true, errorMessage = null)
         
         viewModelScope.launch {
-            authRepository.loginGoogleUser()
-                .collect { result ->
-                    when (result) {
-                        is AuthResponse.Success -> {
-                            // Save session (email will be retrieved from Google)
-                            sessionManager.saveSession("google_user", "google_user_id")
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                isSuccess = true,
-                                email = "",
-                                password = ""
-                            )
-                        }
-                        is AuthResponse.Error -> {
-                            _uiState.value = currentState.copy(
-                                isLoading = false,
-                                errorMessage = result.message ?: "Erreur inconnue",
-                                password = ""
-                            )
+            try {
+                authRepository.loginGoogleUser()
+                    .collect { result ->
+                        when (result) {
+                            is AuthResponse.Success -> {
+                                // Save session (email will be retrieved from Google)
+                                sessionManager.saveSession("google_user", "google_user_id")
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    isSuccess = true,
+                                    email = "",
+                                    password = ""
+                                )
+                            }
+                            is AuthResponse.Error -> {
+                                _uiState.value = currentState.copy(
+                                    isLoading = false,
+                                    errorMessage = result.message ?: "Erreur inconnue",
+                                    password = ""
+                                )
+                            }
                         }
                     }
-                }
+            } catch (e: Exception) {
+                _uiState.value = currentState.copy(
+                    isLoading = false,
+                    errorMessage = "Une erreur est survenue, veuillez réessayer.",
+                    password = ""
+                )
+            }
         }
     }
     

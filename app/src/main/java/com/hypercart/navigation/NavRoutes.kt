@@ -4,6 +4,12 @@ sealed class NavRoutes(val route: String) {
     object Login : NavRoutes("login")
     object Register : NavRoutes("register")
     object Products : NavRoutes("products")
+    object Home : NavRoutes("home")
+    object StoreList : NavRoutes("store_list")
+    object AddStore : NavRoutes("add_store")
+    object StoreDetail : NavRoutes("store_detail/{storeId}") {
+        fun createRoute(storeId: String) = "store_detail/$storeId"
+    }
     object ResetPassword : NavRoutes("new-password")
     object NewPassword : NavRoutes("reset-password") {
         const val TOKEN_ARG = "token"
@@ -17,6 +23,9 @@ sealed class NavRoutes(val route: String) {
                 Login.route -> Login
                 Register.route -> Register
                 Products.route -> Products
+                Home.route -> Home
+                StoreList.route -> StoreList
+                AddStore.route -> AddStore
                 ResetPassword.route -> ResetPassword
                 else -> Login
             }

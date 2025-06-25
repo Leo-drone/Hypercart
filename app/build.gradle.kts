@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -60,6 +62,7 @@ dependencies {
     // MARK: Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.auth.kt)
+    implementation(libs.postgrest.kt)
     implementation(libs.ktor.client.okhttp)
 
     // MARK: Android Core
@@ -106,4 +109,6 @@ dependencies {
     
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    implementation(libs.kotlinx.serialization.json)
 }
