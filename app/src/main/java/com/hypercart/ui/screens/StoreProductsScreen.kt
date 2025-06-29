@@ -83,6 +83,7 @@ fun StoreProductsScreen(
     val error by itemViewModel.error.collectAsState()
     val successMessage by itemViewModel.successMessage.collectAsState()
     val selectedStore by storeViewModel.selectedStore.collectAsState()
+    val needsCategoryInput by itemViewModel.needsCategoryInput.collectAsState()
     
     // État pour la modal d'ajout d'item
     var showAddItemModal by remember { mutableStateOf(false) }
@@ -300,14 +301,33 @@ fun StoreProductsScreen(
     // Modal d'ajout d'item
     AddItemModal(
         isVisible = showAddItemModal,
-        onDismiss = { showAddItemModal = false },
-        onAddItem = { itemName, itemDescription ->
-            // Créer le produit avec la catégorie sélectionnée ou catégorie par défaut
-            val categoryId = selectedCategory ?: 1L
+        onDismiss = { 
+            showAddItemModal = false
+            itemViewModel.clearNeedsCategoryInput()
+        },
+        onAddItem = { productName, quantity, categoryName ->
             val storeIdLong = storeId.toLongOrNull() ?: 0L
-            itemViewModel.createProduct(itemName, itemDescription, categoryId, storeIdLong)
-        }
+            
+            if (categoryName != null) {
+                // L'utilisateur a fourni une catégorie, créer le produit
+                itemViewModel.createProductWithCategory(productName, quantity, categoryName, storeIdLong)
+                showAddItemModal = false
+            } else {
+                // Premier ajout, vérifier si le produit existe
+                itemViewModel.checkAndAddProduct(productName, quantity, storeIdLong)
+            }
+        },
+        needsCategoryInput = needsCategoryInput
     )
+    
+    // Fermer la modal automatiquement si le produit existait et a été ajouté au panier
+    LaunchedEffect(needsCategoryInput, isLoading) {
+        if (needsCategoryInput == null && !isLoading && showAddItemModal) {
+            // Si on n'a plus besoin de catégorie ET qu'on ne charge plus, fermer la modal
+            // (cela signifie que le produit existait et a été ajouté)
+            showAddItemModal = false
+        }
+    }
 }
 
 @Composable

@@ -36,7 +36,7 @@ data class Product(
 data class CreateProductRequest(
     val name: String,
     @SerialName("category_id")
-    val categoryId: Long = 1, // Catégorie par défaut
+    val categoryId: Long,
     @SerialName("store_id")
     val storeId: Long
 )
@@ -49,7 +49,6 @@ data class CartItem(
     val quantity: Int = 1,
     @SerialName("cart_id")
     val cartId: Long,
-    val description: String = ""
 )
 
 @Serializable
@@ -57,7 +56,6 @@ data class AddToCartRequest(
     @SerialName("product_id")
     val productId: Long,
     val quantity: Int = 1,
-    val description: String = ""
 )
 
 @Serializable
@@ -91,7 +89,6 @@ data class InsertCartItemRequest(
     val quantity: Int,
     @SerialName("cart_id")
     val cartId: Long,
-    val description: String = ""
 )
 
 @Serializable

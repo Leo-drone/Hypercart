@@ -1,5 +1,6 @@
 package com.hypercart.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,42 +16,61 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.hypercart.DialogAlert
 import com.hypercart.GradientScreen
 import com.hypercart.SuccessDialog
 import com.hypercart.data.CartItem
+import com.hypercart.data.Product
+import com.hypercart.ui.components.AddItemModal
 import com.hypercart.ui.components.GlassButton
 import com.hypercart.ui.components.GlassIcon
-import com.hypercart.ui.components.GlassIconButton
 import com.hypercart.ui.theme.blueSkye
 import com.hypercart.ui.theme.darkGray
 import com.hypercart.ui.theme.night
@@ -71,12 +91,77 @@ fun CartScreen(
     val error by itemViewModel.error.collectAsState()
     val successMessage by itemViewModel.successMessage.collectAsState()
     val selectedStore by storeViewModel.selectedStore.collectAsState()
+    val needsCategoryInput by itemViewModel.needsCategoryInput.collectAsState()
+    val categories by itemViewModel.categories.collectAsState()
+    val products by itemViewModel.products.collectAsState()
+    val productSuggestions by itemViewModel.productSuggestions.collectAsState()
+    
+    var showAddItemModal by remember { mutableStateOf(false) }
+    var previousCartItemCount by remember { mutableStateOf(0) }
+    var checkedItems by remember { mutableStateOf(setOf<Long>()) }
+    var anyFieldFocused by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // Fonction pour supprimer les items cochés
+    fun deleteCheckedItems() {
+        if (checkedItems.isNotEmpty()) {
+            checkedItems.forEach { itemId ->
+                itemViewModel.removeFromCart(itemId)
+            }
+            checkedItems = emptySet()
+        }
+    }
+    
+    // Gérer le cycle de vie pour supprimer les items cochés quand l'app va en arrière-plan
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    // L'app va en arrière-plan, supprimer les items cochés
+                    deleteCheckedItems()
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    // L'app se ferme, supprimer les items cochés
+                    deleteCheckedItems()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        
+        // Nettoyer l'observateur quand le composable est détruit
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    // Gérer le bouton Back pour supprimer les items cochés (seulement si aucun champ n'est en focus)
+    BackHandler(enabled = !anyFieldFocused) {
+        // Supprimer tous les items cochés avant de naviguer
+        deleteCheckedItems()
+        // Puis naviguer vers la page précédente
+        navController.popBackStack()
+    }
     
     // Initialiser les données au chargement
     LaunchedEffect(storeId) {
         val storeIdLong = storeId.toLongOrNull() ?: 0L
         storeViewModel.loadStoreById(storeIdLong)
         itemViewModel.initializeCartForStore(storeIdLong)
+        itemViewModel.loadAllProducts(storeIdLong) // Pour les recherches
+        itemViewModel.loadCategories() // Pour le dropdown
+    }
+    
+    // Fermer la modal quand un produit est ajouté avec succès
+    LaunchedEffect(currentCart?.items?.size) {
+        val currentItemCount = currentCart?.items?.size ?: 0
+        if (showAddItemModal && currentItemCount > previousCartItemCount) {
+            // Si le nombre d'items uniques a augmenté, fermer la modal
+            kotlinx.coroutines.delay(500)
+            showAddItemModal = false
+            itemViewModel.clearNeedsCategoryInput()
+        }
+        previousCartItemCount = currentItemCount
     }
 
     // Gestion des erreurs
@@ -95,27 +180,23 @@ fun CartScreen(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(night)
-    ) {
-        GradientScreen()
-        
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Top Bar
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Panier - ${selectedStore?.name ?: "Magasin"}",
+                        text = "Liste de courses - ${selectedStore?.name ?: "Magasin"}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { 
+                        // Supprimer tous les items cochés avant de naviguer
+                        deleteCheckedItems()
+                        navController.popBackStack() 
+                    }) {
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "Retour",
@@ -124,21 +205,41 @@ fun CartScreen(
                     }
                 },
                 actions = {
-                    if (currentCart?.items?.isNotEmpty() == true) {
-                        IconButton(onClick = { itemViewModel.clearCart() }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Vider le panier",
-                                tint = Color.Red.copy(alpha = 0.9f)
-                            )
-                        }
+                    // Bouton Paramètres
+                    IconButton(onClick = { /* TODO: Ouvrir paramètres */ }) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Paramètres",
+                            tint = Color.White
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = darkGray
                 )
             )
-
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showAddItemModal = true },
+                containerColor = blueSkye,
+                contentColor = Color.White
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Ajouter produit"
+                )
+            }
+        },
+        containerColor = night
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            GradientScreen()
+            
             if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -151,59 +252,7 @@ fun CartScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
-                        .padding(top = 16.dp)
                 ) {
-                    // Résumé du panier
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            blueSkye.copy(alpha = 0.2f),
-                                            blueSkye.copy(alpha = 0.1f)
-                                        ),
-                                        start = Offset(0f, 0f),
-                                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                                    ),
-                                    shape = RoundedCornerShape(16.dp)
-                                )
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    GlassIcon(Icons.Default.ShoppingCart)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = "Articles dans le panier",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                
-                                Text(
-                                    text = cartItemCount.toString(),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = blueSkye,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Liste des items du panier
                     if (currentCart?.items?.isEmpty() != false) {
@@ -224,13 +273,13 @@ fun CartScreen(
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
                                 Text(
-                                    text = "Panier vide",
+                                    text = "Liste vide",
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = Color.White.copy(alpha = 0.9f)
                                 )
                                 
                                 Text(
-                                    text = "Ajoutez des produits à votre panier",
+                                    text = "Ajoutez des produits à votre liste de courses",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
@@ -238,54 +287,41 @@ fun CartScreen(
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
                                 GlassButton(
-                                    onClick = { navController.popBackStack() }
+                                    onClick = { showAddItemModal = true }
                                 ) {
-                                    Text("Continuer les achats", color = Color.White)
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Ajouter un produit", color = Color.White)
                                 }
                             }
                         }
                     } else {
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(currentCart!!.items) { cartItem ->
                                 CartItemCard(
                                     cartItem = cartItem,
+                                    products = products,
+                                    isChecked = checkedItems.contains(cartItem.id),
+                                    onCheckedChange = { isChecked ->
+                                        checkedItems = if (isChecked) {
+                                            checkedItems + cartItem.id
+                                        } else {
+                                            checkedItems - cartItem.id
+                                        }
+                                    },
                                     onUpdateQuantity = { newQuantity ->
                                         itemViewModel.updateCartItemQuantity(cartItem.id, newQuantity)
                                     },
-                                    onRemove = {
-                                        itemViewModel.removeFromCart(cartItem.id)
+                                    onFocusChange = { isFocused ->
+                                        anyFieldFocused = isFocused
                                     }
                                 )
                             }
                             
                             item {
                                 Spacer(modifier = Modifier.height(16.dp))
-                                
-                                // Actions du panier
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    GlassButton(
-                                        onClick = { /* TODO: Passer commande */ },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            "Passer la commande",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    
-                                    GlassButton(
-                                        onClick = { navController.popBackStack() },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("Continuer les achats", color = Color.White)
-                                    }
-                                }
                             }
                         }
                     }
@@ -293,18 +329,145 @@ fun CartScreen(
             }
         }
     }
+    
+    // Modal d'ajout d'item
+    if (showAddItemModal) {
+        AddItemModal(
+            isVisible = showAddItemModal,
+            onDismiss = { 
+                showAddItemModal = false
+                itemViewModel.clearNeedsCategoryInput()
+                itemViewModel.clearProductSuggestions()
+            },
+            onAddItem = { productName, quantity, categoryName ->
+                val storeIdLong = storeId.toLongOrNull() ?: 0L
+                if (categoryName != null) {
+                    // Créer le produit avec la catégorie
+                    itemViewModel.createProductWithCategory(productName, quantity, categoryName, storeIdLong)
+                } else if (productName.startsWith("EXISTING_PRODUCT_")) {
+                    // Produit existant sélectionné depuis les suggestions
+                    val productId = productName.removePrefix("EXISTING_PRODUCT_").toLongOrNull()
+                    if (productId != null) {
+                        itemViewModel.addToCart(productId, quantity)
+                    }
+                } else {
+                    // Chercher le produit existant
+                    itemViewModel.checkAndAddProduct(productName, quantity, storeIdLong)
+                }
+            },
+            onSearchProducts = { query ->
+                val storeIdLong = storeId.toLongOrNull() ?: 0L
+                itemViewModel.searchProductSuggestions(query, storeIdLong)
+            },
+            onSelectProduct = { product ->
+                // Remplir les champs avec le produit sélectionné
+
+
+
+
+                itemViewModel.clearProductSuggestions()
+            },
+            productSuggestions = productSuggestions,
+            needsCategoryInput = needsCategoryInput
+        )
+    }
+}
+
+@Composable
+fun QuantityTextField(
+    quantity: Int,
+    onQuantityChange: (Int) -> Unit,
+    onFocusChange: (Boolean) -> Unit = {}
+) {
+    var quantityText by remember { mutableStateOf(quantity.toString()) }
+    val focusManager = LocalFocusManager.current
+    var isFocused by remember { mutableStateOf(false) }
+    
+    // Gérer le bouton Back quand le champ est en focus
+    BackHandler(enabled = isFocused) {
+        focusManager.clearFocus()
+    }
+    
+    // Synchroniser avec la quantité externe
+    LaunchedEffect(quantity) {
+        quantityText = quantity.toString()
+    }
+    
+    fun handleDoneEditing(clearFocusAfter: Boolean = true) {
+        if (quantityText.isEmpty() || quantityText.toIntOrNull() == null || quantityText.toInt() <= 0) {
+            // Si le champ est vide ou invalide, remettre la valeur originale
+            quantityText = quantity.toString()
+        } else {
+            val newQuantity = quantityText.toInt()
+            if (newQuantity != quantity && newQuantity > 0) {
+                onQuantityChange(newQuantity)
+            }
+        }
+        if (clearFocusAfter) {
+            focusManager.clearFocus()
+        }
+    }
+    
+    OutlinedTextField(
+        value = quantityText,
+        onValueChange = { newValue ->
+            if (newValue.isEmpty()) {
+                quantityText = newValue
+            } else if (newValue.toIntOrNull() != null && newValue.toInt() > 0) {
+                quantityText = newValue
+            }
+        },
+        placeholder = { 
+            Text("1", color = Color.White.copy(alpha = 0.5f)) 
+        },
+        modifier = Modifier
+            .width(70.dp)
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+                onFocusChange(focusState.isFocused)
+                if (!focusState.isFocused) {
+                    // Le champ a perdu le focus, sauvegarder sans clear focus
+                    handleDoneEditing(clearFocusAfter = false)
+                }
+            },
+        shape = RoundedCornerShape(8.dp),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(
+            onDone = { handleDoneEditing() }
+        ),
+        colors = TextFieldDefaults.colors(
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedContainerColor = Color.White.copy(alpha = 0.1f),
+            unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+            focusedIndicatorColor = blueSkye,
+            unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
+        ),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+    )
 }
 
 @Composable
 fun CartItemCard(
     cartItem: CartItem,
+    products: List<Product>,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
     onUpdateQuantity: (Int) -> Unit,
-    onRemove: () -> Unit
+    onFocusChange: (Boolean) -> Unit
 ) {
+    val product = products.find { it.id == cartItem.productId }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Box(
@@ -319,87 +482,49 @@ fun CartItemCard(
                         start = Offset(0f, 0f),
                         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
                     ),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 )
-                .padding(16.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                .padding(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "Produit #${cartItem.productId}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        if (cartItem.description.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = cartItem.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
-                    
-                    GlassIconButton(
-                        icon = Icons.Default.Delete,
-                        onClick = onRemove,
-                        tint = Color.Red.copy(alpha = 0.9f)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Contrôles de quantité
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Quantité:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f)
+                    Checkbox(
+                        checked = isChecked,
+                        onCheckedChange = onCheckedChange,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = blueSkye,
+                            uncheckedColor = Color.White.copy(alpha = 0.7f),
+                            checkmarkColor = Color.White
+                        )
                     )
                     
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        GlassIconButton(
-                            icon = Icons.Default.Remove,
-                            onClick = { 
-                                if (cartItem.quantity > 1) {
-                                    onUpdateQuantity(cartItem.quantity - 1)
-                                } else {
-                                    onRemove()
-                                }
-                            },
-                            modifier = Modifier.size(32.dp)
-                        )
-                        
-                        Text(
-                            text = cartItem.quantity.toString(),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        GlassIconButton(
-                            icon = Icons.Default.Add,
-                            onClick = { onUpdateQuantity(cartItem.quantity + 1) },
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    
+                    Text(
+                        text = product?.name ?: "Produit #${cartItem.productId}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (isChecked) Color.White.copy(alpha = 0.6f) else Color.White,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+                
+                QuantityTextField(
+                    quantity = cartItem.quantity,
+                    onQuantityChange = { newQuantity ->
+                        if (newQuantity > 0) {
+                            onUpdateQuantity(newQuantity)
+                        }
+                    },
+                    onFocusChange = onFocusChange
+                )
             }
         }
     }

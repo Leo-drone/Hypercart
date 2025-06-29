@@ -1,5 +1,6 @@
 package com.hypercart.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hypercart.data.AddToCartRequest
@@ -44,6 +45,14 @@ class ItemViewModel : ViewModel() {
     
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+    
+    // État pour indiquer si on a besoin de demander la catégorie
+    private val _needsCategoryInput = MutableStateFlow<Pair<String, Int>?>(null) // nom produit, quantité
+    val needsCategoryInput: StateFlow<Pair<String, Int>?> = _needsCategoryInput.asStateFlow()
+    
+    // État pour les suggestions d'autocomplétion
+    private val _productSuggestions = MutableStateFlow<List<Product>>(emptyList())
+    val productSuggestions: StateFlow<List<Product>> = _productSuggestions.asStateFlow()
 
     fun loadProductsAndCategories(storeId: Long) {
         viewModelScope.launch {
@@ -55,6 +64,10 @@ class ItemViewModel : ViewModel() {
                 productRepository.getAllCategories()
                     .onSuccess { categoryList ->
                         _categories.value = categoryList
+                        // Si aucune catégorie n'existe, créer une catégorie par défaut
+                        if (categoryList.isEmpty()) {
+                            Log.w("ItemViewModel", "Aucune catégorie trouvée, création d'une catégorie par défaut")
+                        }
                     }
                     .onFailure { exception ->
                         _error.value = exception.message ?: "Erreur lors du chargement des catégories"
@@ -129,7 +142,7 @@ class ItemViewModel : ViewModel() {
         }
     }
     
-    fun addToCart(productId: Long, quantity: Int = 1, description: String = "") {
+    fun addToCart(productId: Long, quantity: Int = 1) {
         viewModelScope.launch {
             val cart = _currentCart.value
             if (cart == null) {
@@ -137,20 +150,21 @@ class ItemViewModel : ViewModel() {
                 return@launch
             }
             
-            _isLoading.value = true
             _error.value = null
             
             try {
                 val request = AddToCartRequest(
                     productId = productId,
                     quantity = quantity,
-                    description = description
                 )
                 
                 cartRepository.addItemToCart(cart.id, request)
                     .onSuccess { cartItem ->
-                        _successMessage.value = "Produit ajouté au panier !"
-                        loadCartWithItems(cart.id) // Recharger le panier
+                        // Mise à jour locale immédiate avec le nouvel item
+                        val updatedItems = cart.items + cartItem
+                        val updatedCart = cart.copy(items = updatedItems)
+                        _currentCart.value = updatedCart
+                        _cartItemCount.value = updatedItems.sumOf { it.quantity }
                     }
                     .onFailure { exception ->
                         _error.value = exception.message ?: "Impossible d'ajouter au panier"
@@ -158,7 +172,6 @@ class ItemViewModel : ViewModel() {
             } catch (e: Exception) {
                 _error.value = "Une erreur est survenue lors de l'ajout au panier."
             }
-            _isLoading.value = false
         }
     }
     
@@ -166,26 +179,36 @@ class ItemViewModel : ViewModel() {
         viewModelScope.launch {
             val cart = _currentCart.value ?: return@launch
             
-            _isLoading.value = true
-            _error.value = null
+            if (newQuantity <= 0) {
+                // Si quantité <= 0, supprimer directement l'item
+                removeFromCart(itemId)
+                return@launch
+            }
+            
+            // Mise à jour locale immédiate (optimistic update)
+            val updatedItems = cart.items.map { item ->
+                if (item.id == itemId) {
+                    item.copy(quantity = newQuantity)
+                } else {
+                    item
+                }
+            }
+            val updatedCart = cart.copy(items = updatedItems)
+            _currentCart.value = updatedCart
+            _cartItemCount.value = updatedItems.sumOf { it.quantity }
             
             try {
                 cartRepository.updateCartItemQuantity(itemId, newQuantity)
-                    .onSuccess {
-                        loadCartWithItems(cart.id) // Recharger le panier
-                    }
                     .onFailure { exception ->
-                        if (exception.message?.contains("supprimé") == true) {
-                            _successMessage.value = "Article supprimé du panier"
-                            loadCartWithItems(cart.id)
-                        } else {
-                            _error.value = exception.message ?: "Erreur lors de la mise à jour"
-                        }
+                        _error.value = exception.message ?: "Erreur lors de la mise à jour"
+                        // Recharger seulement en cas d'erreur réelle
+                        loadCartWithItems(cart.id)
                     }
             } catch (e: Exception) {
                 _error.value = "Une erreur est survenue lors de la mise à jour."
+                // Recharger en cas d'erreur
+                loadCartWithItems(cart.id)
             }
-            _isLoading.value = false
         }
     }
     
@@ -193,45 +216,51 @@ class ItemViewModel : ViewModel() {
         viewModelScope.launch {
             val cart = _currentCart.value ?: return@launch
             
-            _isLoading.value = true
-            _error.value = null
-            
+            // Mise à jour locale immédiate (optimistic update)
+            val updatedItems = cart.items.filter { item -> item.id != itemId }
+            val updatedCart = cart.copy(items = updatedItems)
+            _currentCart.value = updatedCart
+            _cartItemCount.value = updatedItems.sumOf { it.quantity }
+
+            // Puis sauvegarder en arrière-plan
             try {
                 cartRepository.removeItemFromCart(itemId)
-                    .onSuccess {
-                        _successMessage.value = "Article supprimé du panier"
-                        loadCartWithItems(cart.id) // Recharger le panier
-                    }
                     .onFailure { exception ->
                         _error.value = exception.message ?: "Erreur lors de la suppression"
+                        // Recharger en cas d'erreur pour restaurer l'état correct
+                        loadCartWithItems(cart.id)
                     }
             } catch (e: Exception) {
                 _error.value = "Une erreur est survenue lors de la suppression."
+                // Recharger en cas d'erreur
+                loadCartWithItems(cart.id)
             }
-            _isLoading.value = false
         }
     }
     
+
     fun clearCart() {
         viewModelScope.launch {
             val cart = _currentCart.value ?: return@launch
             
-            _isLoading.value = true
-            _error.value = null
-            
+            // Mise à jour locale immédiate (optimistic update)
+            val updatedCart = cart.copy(items = emptyList())
+            _currentCart.value = updatedCart
+            _cartItemCount.value = 0
+
+            // Puis sauvegarder en arrière-plan
             try {
                 cartRepository.clearCart(cart.id)
-                    .onSuccess {
-                        _successMessage.value = "Panier vidé"
-                        loadCartWithItems(cart.id) // Recharger le panier
-                    }
                     .onFailure { exception ->
                         _error.value = exception.message ?: "Erreur lors du vidage du panier"
+                        // Recharger en cas d'erreur pour restaurer l'état correct
+                        loadCartWithItems(cart.id)
                     }
             } catch (e: Exception) {
                 _error.value = "Une erreur est survenue lors du vidage du panier."
+                // Recharger en cas d'erreur
+                loadCartWithItems(cart.id)
             }
-            _isLoading.value = false
         }
     }
     
@@ -252,7 +281,7 @@ class ItemViewModel : ViewModel() {
         }
     }
     
-    fun createProduct(name: String, description: String = "", categoryId: Long = 1, storeId: Long) {
+    fun createProduct(name: String, categoryId: Long = 1, storeId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -264,9 +293,11 @@ class ItemViewModel : ViewModel() {
                     storeId = storeId
                 )
                 
+                Log.i("ItemViewModel", "Création produit: name=$name, categoryId=$categoryId, storeId=$storeId")
+                Log.i("ItemViewModel", "Request object: $request")
+                
                 productRepository.createProduct(request)
                     .onSuccess { newProduct ->
-                        _successMessage.value = "Produit '$name' créé avec succès !"
                         // Recharger la liste des produits
                         if (_selectedCategory.value != null) {
                             loadProductsByCategory(_selectedCategory.value!!, storeId)
@@ -287,9 +318,150 @@ class ItemViewModel : ViewModel() {
     fun clearError() {
         _error.value = null
     }
+
     
     fun clearSuccessMessage() {
         _successMessage.value = null
+    }
+    
+    fun checkAndAddProduct(productName: String, quantity: Int = 1, storeId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            
+            try {
+                // 1. Chercher si le produit existe déjà
+                productRepository.searchProductByName(productName, storeId)
+                    .onSuccess { existingProduct ->
+                        if (existingProduct != null) {
+                            // Le produit existe, l'ajouter directement au panier
+                            Log.i("ItemViewModel", "Produit trouvé: ${existingProduct.name}, ajout au panier")
+                            addToCart(existingProduct.id, quantity)
+                            _needsCategoryInput.value = null
+                        } else {
+                            // Le produit n'existe pas, demander la catégorie
+                            Log.i("ItemViewModel", "Produit non trouvé: $productName, demande de catégorie")
+                            _needsCategoryInput.value = Pair(productName, quantity)
+                        }
+                    }
+                    .onFailure { exception ->
+                        _error.value = exception.message ?: "Erreur lors de la recherche du produit"
+                    }
+            } catch (e: Exception) {
+                _error.value = "Une erreur est survenue lors de l'ajout du produit."
+            }
+            _isLoading.value = false
+        }
+    }
+    
+    fun createProductWithCategory(productName: String, quantity: Int, categoryName: String, storeId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            
+            try {
+                createProductWithNewCategory(productName, categoryName, quantity, storeId)
+                _needsCategoryInput.value = null
+            } catch (e: Exception) {
+                _error.value = "Une erreur est survenue lors de la création du produit."
+                _isLoading.value = false
+            }
+        }
+    }
+    
+    fun clearNeedsCategoryInput() {
+        _needsCategoryInput.value = null
+    }
+    
+    // Autocomplétion
+    fun searchProductSuggestions(query: String, storeId: Long) {
+        if (query.length < 2) {
+            _productSuggestions.value = emptyList()
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                val allProducts = _products.value
+                val suggestions = allProducts.filter { product ->
+                    product.name.contains(query, ignoreCase = true)
+                }.take(5) // Limiter à 5 suggestions
+                
+                _productSuggestions.value = suggestions
+            } catch (e: Exception) {
+                Log.e("ItemViewModel", "Erreur lors de la recherche de suggestions: ${e.message}")
+                _productSuggestions.value = emptyList()
+            }
+        }
+    }
+    
+    fun clearProductSuggestions() {
+        _productSuggestions.value = emptyList()
+    }
+
+    private suspend fun createProductWithNewCategory(productName: String, categoryName: String, quantity: Int, storeId: Long) {
+        // 1. Vérifier si la catégorie existe déjà
+        val existingCategory = _categories.value.find { it.name.equals(categoryName, ignoreCase = true) }
+        
+        if (existingCategory != null) {
+            // La catégorie existe déjà, utiliser son ID
+            Log.i("ItemViewModel", "Catégorie existante trouvée: ${existingCategory.name} (ID: ${existingCategory.id})")
+            createProductWithExistingCategory(productName, existingCategory.id, quantity, storeId)
+        } else {
+            // Créer une nouvelle catégorie
+            productRepository.createCategory(categoryName)
+                .onSuccess { newCategory ->
+                    Log.i("ItemViewModel", "Nouvelle catégorie créée: ${newCategory.name} (ID: ${newCategory.id})")
+                    
+                    // Rafraîchir la liste des catégories
+                    loadCategories()
+                    
+                    // Créer le produit avec cette catégorie
+                    createProductWithExistingCategory(productName, newCategory.id, quantity, storeId)
+                }
+                .onFailure { exception ->
+                    _error.value = exception.message ?: "Impossible de créer la catégorie"
+                    _isLoading.value = false
+                }
+        }
+    }
+    
+    private suspend fun createProductWithExistingCategory(productName: String, categoryId: Long, quantity: Int, storeId: Long) {
+        val request = CreateProductRequest(
+            name = productName,
+            categoryId = categoryId,
+            storeId = storeId
+        )
+
+        productRepository.createProduct(request)
+            .onSuccess { newProduct ->
+                _successMessage.value = "Produit '$productName' créé !"
+                
+                // Recharger la liste des produits
+                if (_selectedCategory.value != null) {
+                    loadProductsByCategory(_selectedCategory.value!!, storeId)
+                } else {
+                    loadAllProducts(storeId)
+                }
+
+                // Ajouter le produit au panier
+                addToCart(newProduct.id, quantity)
+            }
+            .onFailure { exception ->
+                _error.value = exception.message ?: "Impossible de créer le produit"
+            }
+        
+        _isLoading.value = false
+    }
+    
+    suspend fun loadCategories() {
+        productRepository.getAllCategories()
+            .onSuccess { categoryList ->
+                _categories.value = categoryList
+            }
+            .onFailure { exception ->
+                Log.e("ItemViewModel", "Erreur lors du rechargement des catégories: ${exception.message}")
+            }
     }
 }
 

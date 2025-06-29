@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -29,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -51,10 +57,32 @@ import com.hypercart.ui.theme.night
 fun AddItemModal(
     isVisible: Boolean,
     onDismiss: () -> Unit,
-    onAddItem: (String, String) -> Unit
+    onAddItem: (String, Int, String?) -> Unit, // nom, quantité, catégorie (si nécessaire)
+    onSearchProducts: (String) -> Unit = {},
+    onSelectProduct: (com.hypercart.data.Product) -> Unit = {},
+    productSuggestions: List<com.hypercart.data.Product> = emptyList(),
+    needsCategoryInput: Pair<String, Int>? = null // produit et quantité qui ont besoin d'une catégorie
 ) {
     var itemName by remember { mutableStateOf("") }
-    var itemDescription by remember { mutableStateOf("") }
+    var itemQuantity by remember { mutableStateOf("1") }
+    var categoryName by remember { mutableStateOf("") }
+    var showCategoryInput by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var selectedProduct by remember { mutableStateOf<com.hypercart.data.Product?>(null) }
+    
+    // Réagir aux changements de needsCategoryInput
+    LaunchedEffect(needsCategoryInput) {
+        if (needsCategoryInput != null) {
+            // Un produit a besoin d'une catégorie
+            itemName = needsCategoryInput.first
+            itemQuantity = needsCategoryInput.second.toString()
+            showCategoryInput = true
+            categoryName = ""
+            isLoading = false // Importante : débloquer les champs
+        } else {
+            showCategoryInput = false
+        }
+    }
 
     if (isVisible) {
         Dialog(
@@ -122,13 +150,20 @@ fun AddItemModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Ajouter un article",
+                                        text = if (showCategoryInput) "Nouveau produit" else "Ajouter un produit",
                                         style = MaterialTheme.typography.headlineSmall,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold
                                     )
                                     
-                                    IconButton(onClick = onDismiss) {
+                                    IconButton(onClick = {
+                                        itemName = ""
+                                        itemQuantity = "1"
+                                        categoryName = ""
+                                        showCategoryInput = false
+                                        selectedProduct = null
+                                        onDismiss()
+                                    }) {
                                         Icon(
                                             Icons.Default.Close,
                                             contentDescription = "Fermer",
@@ -139,71 +174,194 @@ fun AddItemModal(
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // Nom de l'article
-                                Text(
-                                    text = "Nom de l'article",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                OutlinedTextField(
-                                    value = itemName,
-                                    onValueChange = { itemName = it },
-                                    placeholder = { 
-                                        Text(
-                                            "Ex: iPhone 15 Pro",
-                                            color = Color.White.copy(alpha = 0.6f)
-                                        ) 
-                                    },
+                                // Champs principaux - toujours visibles
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedContainerColor = Color.White.copy(alpha = 0.1f),
-                                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                                        focusedIndicatorColor = blueSkye,
-                                        unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
-                                    )
-                                )
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                // Description
-                                Text(
-                                    text = "Description (optionnel)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                OutlinedTextField(
-                                    value = itemDescription,
-                                    onValueChange = { itemDescription = it },
-                                    placeholder = { 
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Nom du produit
+                                    Column(modifier = Modifier.weight(2f)) {
                                         Text(
-                                            "Description de l'article...",
-                                            color = Color.White.copy(alpha = 0.6f)
-                                        ) 
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    minLines = 2,
-                                    maxLines = 3,
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White,
-                                        focusedContainerColor = Color.White.copy(alpha = 0.1f),
-                                        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                                        focusedIndicatorColor = blueSkye,
-                                        unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
+                                            text = if (selectedProduct != null) "Produit sélectionné ✓" else "Nom du produit",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (selectedProduct != null) blueSkye else Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        OutlinedTextField(
+                                            value = itemName,
+                                            onValueChange = { newValue ->
+                                                itemName = newValue
+                                                // Réinitialiser le produit sélectionné si on tape manuellement
+                                                selectedProduct = null
+                                                // Déclencher la recherche d'autocomplétion
+                                                if (!showCategoryInput && newValue.isNotBlank()) {
+                                                    onSearchProducts(newValue)
+                                                }
+                                            },
+                                            placeholder = { 
+                                                Text(
+                                                    "Ex: Pommes, Pain, Lait...",
+                                                    color = Color.White.copy(alpha = 0.6f)
+                                                ) 
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedContainerColor = Color.White.copy(alpha = 0.1f),
+                                                unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                                focusedIndicatorColor = blueSkye,
+                                                unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            enabled = !isLoading
+                                        )
+                                    }
+                                    
+                                    // Quantité
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Quantité",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        OutlinedTextField(
+                                            value = itemQuantity,
+                                            onValueChange = { newValue ->
+                                                if (newValue.isEmpty() || newValue.toIntOrNull() != null) {
+                                                    itemQuantity = newValue
+                                                }
+                                            },
+                                            placeholder = { 
+                                                Text(
+                                                    "1",
+                                                    color = Color.White.copy(alpha = 0.6f)
+                                                ) 
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedContainerColor = Color.White.copy(alpha = 0.1f),
+                                                unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                                focusedIndicatorColor = blueSkye,
+                                                unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            enabled = !isLoading
+                                        )
+                                    }
+                                }
+                                
+                                // Suggestions d'autocomplétion
+                                if (productSuggestions.isNotEmpty() && !showCategoryInput) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    
+                                    Text(
+                                        text = "Produits suggérés :",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        fontWeight = FontWeight.Medium
                                     )
-                                )
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    LazyColumn(
+                                        modifier = Modifier.height(200.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        items(productSuggestions) { product ->
+                                                                                         Card(
+                                                 modifier = Modifier
+                                                     .fillMaxWidth()
+                                                     .clickable {
+                                                         // Remplir les champs avec le produit sélectionné
+                                                         itemName = product.name
+                                                         itemQuantity = "1"
+                                                         selectedProduct = product
+                                                         onSelectProduct(product)
+                                                     },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = Color.White.copy(alpha = 0.1f)
+                                                )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(12.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = product.name,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = Color.White,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    
+                                                    Icon(
+                                                        Icons.Default.Add,
+                                                        contentDescription = "Ajouter",
+                                                        tint = blueSkye,
+                                                        modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Champ catégorie - visible seulement si le produit n'existe pas
+                                AnimatedVisibility(visible = showCategoryInput) {
+                                    Column {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        
+                                        Text(
+                                            text = "Ce produit n'existe pas encore.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "Veuillez spécifier une catégorie :",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        OutlinedTextField(
+                                            value = categoryName,
+                                            onValueChange = { categoryName = it },
+                                            placeholder = { 
+                                                Text(
+                                                    "Ex: Électronique, Alimentation...",
+                                                    color = Color.White.copy(alpha = 0.6f)
+                                                ) 
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = TextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedContainerColor = Color.White.copy(alpha = 0.1f),
+                                                unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+                                                focusedIndicatorColor = blueSkye,
+                                                unfocusedIndicatorColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            enabled = !isLoading
+                                        )
+                                    }
+                                }
                                 
                                 Spacer(modifier = Modifier.height(32.dp))
                                 
@@ -213,7 +371,14 @@ fun AddItemModal(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     GlassButton(
-                                        onClick = onDismiss,
+                                        onClick = {
+                                            itemName = ""
+                                            itemQuantity = "1"
+                                            categoryName = ""
+                                            showCategoryInput = false
+                                            selectedProduct = null
+                                            onDismiss()
+                                        },
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Text("Annuler", color = Color.White)
@@ -221,11 +386,47 @@ fun AddItemModal(
                                     
                                     GlassButton(
                                         onClick = { 
-                                            if (itemName.isNotBlank()) {
-                                                onAddItem(itemName.trim(), itemDescription.trim())
-                                                itemName = ""
-                                                itemDescription = ""
-                                                onDismiss()
+                                            // Vérifier les conditions avant d'exécuter
+                                            val isEnabled = !isLoading && itemName.isNotBlank() && 
+                                                    itemQuantity.isNotBlank() && 
+                                                    (!showCategoryInput || categoryName.isNotBlank())
+                                            
+                                            if (isEnabled) {
+                                                val quantity = itemQuantity.toIntOrNull() ?: 1
+                                                
+                                                if (showCategoryInput) {
+                                                    // Confirmer avec catégorie
+                                                    if (categoryName.isNotBlank()) {
+                                                        isLoading = true
+                                                        onAddItem(itemName.trim(), quantity, categoryName.trim())
+                                                        // Reset des champs
+                                                        itemName = ""
+                                                        itemQuantity = "1"
+                                                        categoryName = ""
+                                                        showCategoryInput = false
+                                                        isLoading = false
+                                                        onDismiss()
+                                                    }
+                                                } else {
+                                                    // Vérifier si un produit a été sélectionné depuis les suggestions
+                                                    if (selectedProduct != null) {
+                                                        // Produit existant sélectionné, l'ajouter directement
+                                                        isLoading = true
+                                                        // Utiliser un callback spécial pour les produits existants
+                                                        onAddItem("EXISTING_PRODUCT_${selectedProduct!!.id}", quantity, null)
+                                                        // Reset des champs
+                                                        itemName = ""
+                                                        itemQuantity = "1"
+                                                        selectedProduct = null
+                                                        isLoading = false
+                                                        onDismiss()
+                                                    } else {
+                                                        // Premier ajout - vérifier si le produit existe
+                                                        isLoading = true
+                                                        onAddItem(itemName.trim(), quantity, null)
+                                                        // Note: Le reset se fera selon le résultat dans la logique parent
+                                                    }
+                                                }
                                             }
                                         },
                                         modifier = Modifier.weight(1f)
@@ -236,7 +437,14 @@ fun AddItemModal(
                                             tint = Color.White
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Ajouter", color = Color.White)
+                                        Text(
+                                            text = when {
+                                                showCategoryInput -> "Confirmer"
+                                                selectedProduct != null -> "Ajouter"
+                                                else -> "Ajouter"
+                                            },
+                                            color = Color.White
+                                        )
                                     }
                                 }
                             }
@@ -246,4 +454,8 @@ fun AddItemModal(
             }
         }
     }
-} 
+}
+
+// Fonction utilitaire pour que AddItemModal puisse demander d'afficher le champ catégorie
+@Composable
+fun rememberAddItemModalState() = remember { mutableStateOf(false) } 

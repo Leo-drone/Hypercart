@@ -175,7 +175,7 @@ fun HomeScreen(
                         StoreCard(
                             store = store,
                             onStoreClick = { 
-                                navController.navigate(NavRoutes.StoreProducts.createRoute(store.id.toString()))
+                                navController.navigate(NavRoutes.Cart.createRoute(store.id.toString()))
                             },
                             onDeleteClick = { showDeleteDialog = store }
                         )

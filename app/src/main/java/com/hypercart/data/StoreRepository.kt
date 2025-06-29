@@ -30,21 +30,36 @@ class StoreRepository {
                     .decodeSingle<Store>()
                 
                 // Créer automatiquement le membre "owner" pour le créateur du magasin
+                val ownerMember = CreateStoreMemberRequest(
+                    storeId = createdStore.id,
+                    userId = currentUser.id,
+                    role = "owner"
+                )
+                
                 try {
-                    val ownerMember = CreateStoreMemberRequest(
-                        storeId = createdStore.id,
-                        userId = currentUser.id,
-                        role = "owner"
-                    )
-                    
                     supabaseClient
                         .from("store_members")
                         .insert(ownerMember)
                         
                     Log.i("StoreRepository", "Membre owner créé pour le magasin ${createdStore.id}")
                 } catch (e: Exception) {
-                    Log.w("StoreRepository", "Erreur lors de la création du membre owner: ${e.message}")
-                    // On continue même si ça échoue, le magasin est créé
+                    Log.e("StoreRepository", "ERREUR CRITIQUE: Impossible de créer le membre owner: ${e.message}")
+                    
+                    // Si la création du membre échoue, supprimer le magasin créé
+                    try {
+                        supabaseClient
+                            .from("store")
+                            .delete {
+                                filter {
+                                    eq("id", createdStore.id)
+                                }
+                            }
+                        Log.i("StoreRepository", "Magasin ${createdStore.id} supprimé suite à l'échec de création du membre")
+                    } catch (cleanupException: Exception) {
+                        Log.e("StoreRepository", "Erreur lors du nettoyage: ${cleanupException.message}")
+                    }
+                    
+                    return@withContext Result.failure(Exception("Erreur lors de la configuration du magasin. Veuillez réessayer."))
                 }
                 
                 // Petit délai pour laisser Supabase se synchroniser
@@ -146,7 +161,7 @@ suspend fun getAllStores(): Result<List<Store>> {
                 // Étape 4: Supprimer tous les produits associés au magasin
                 try {
                     supabaseClient
-                        .from("products")
+                        .from("product")
                         .delete {
                             filter {
                                 eq("store_id", storeId)
@@ -252,6 +267,33 @@ suspend fun getAllStores(): Result<List<Store>> {
             } catch (e: Exception) {
                 Log.e("StoreRepository", "Erreur lors de la suppression du membre: ${e.message}")
                 Result.failure(Exception("Impossible de supprimer le membre. Veuillez réessayer."))
+            }
+        }
+    }
+    
+    suspend fun isUserMemberOfStore(storeId: Long, userId: String? = null): Result<Boolean> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val currentUser = supabaseClient.auth.currentUserOrNull()
+                    ?: return@withContext Result.failure(Exception("Vous devez être connecté"))
+                
+                val userIdToCheck = userId ?: currentUser.id
+                
+                val member = supabaseClient
+                    .from("store_members")
+                    .select(columns = Columns.ALL) {
+                        filter {
+                            eq("store_id", storeId)
+                            eq("user_id", userIdToCheck)
+                        }
+                    }
+                    .decodeSingleOrNull<StoreMember>()
+                
+                Log.i("StoreRepository", "Vérification membre: utilisateur $userIdToCheck dans magasin $storeId = ${member != null}")
+                Result.success(member != null)
+            } catch (e: Exception) {
+                Log.e("StoreRepository", "Erreur lors de la vérification du membre: ${e.message}")
+                Result.failure(Exception("Impossible de vérifier les permissions. Veuillez réessayer."))
             }
         }
     }

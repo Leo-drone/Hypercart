@@ -94,15 +94,11 @@ class ProductRepository {
                 val currentUser = supabaseClient.auth.currentUserOrNull()
                     ?: return@withContext Result.failure(Exception("Vous devez être connecté pour créer un produit"))
                 
-                val productData = CreateProductRequest(
-                    name = request.name,
-                    categoryId = request.categoryId,
-                    storeId = request.storeId
-                )
+                Log.i("ProductRepository", "Création produit - name: ${request.name}, categoryId: ${request.categoryId}, storeId: ${request.storeId}")
 
                 val createdProduct = supabaseClient
                     .from("product")
-                    .insert(productData) {
+                    .insert(request) {
                         select(Columns.ALL)
                     }
                     .decodeSingle<Product>()
@@ -112,6 +108,47 @@ class ProductRepository {
             } catch (e: Exception) {
                 Log.e("ProductRepository", "Erreur lors de la création du produit: ${e.message}")
                 Result.failure(Exception("Impossible de créer le produit. Veuillez réessayer."))
+            }
+        }
+    }
+    
+    suspend fun searchProductByName(productName: String, storeId: Long): Result<Product?> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val product = supabaseClient
+                    .from("product")
+                    .select(columns = Columns.ALL) {
+                        filter {
+                            eq("name", productName)
+                            eq("store_id", storeId)
+                        }
+                    }
+                    .decodeSingleOrNull<Product>()
+                
+                Result.success(product)
+            } catch (e: Exception) {
+                Log.e("ProductRepository", "Erreur lors de la recherche du produit: ${e.message}")
+                Result.failure(Exception("Impossible de rechercher le produit. Veuillez réessayer."))
+            }
+        }
+    }
+    
+    suspend fun createCategory(categoryName: String): Result<Category> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val category = Category(name = categoryName)
+                
+                val createdCategory = supabaseClient
+                    .from("categories")
+                    .insert(category) {
+                        select(Columns.ALL)
+                    }
+                    .decodeSingle<Category>()
+                
+                Result.success(createdCategory)
+            } catch (e: Exception) {
+                Log.e("ProductRepository", "Erreur lors de la création de la catégorie: ${e.message}")
+                Result.failure(Exception("Impossible de créer la catégorie. Veuillez réessayer."))
             }
         }
     }

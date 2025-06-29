@@ -18,7 +18,7 @@ class CartRepository {
                 val currentUser = supabaseClient.auth.currentUserOrNull()
                     ?: return@withContext Result.failure(Exception("Vous devez être connecté"))
 
-                Log.i("CartRepository", "Récupération du panier pour l'utilisateur: ${currentUser.id} dans le store: $storeId")
+                Log.i("CartRepository", "Récupération du panier collaboratif pour le magasin: $storeId")
 
                 // S'assurer que l'utilisateur existe dans la table users
                 val userResult = repository.ensureUserExists()
@@ -26,13 +26,19 @@ class CartRepository {
                     return@withContext Result.failure(userResult.exceptionOrNull() ?: Exception("Erreur utilisateur"))
                 }
 
-                // D'abord, essayer de récupérer un panier existant
+                // Vérifier que l'utilisateur est membre du magasin
+                val storeRepository = com.hypercart.data.StoreRepository()
+                val membershipResult = storeRepository.isUserMemberOfStore(storeId, currentUser.id)
+                if (membershipResult.isFailure || membershipResult.getOrNull() != true) {
+                    return@withContext Result.failure(Exception("Vous n'êtes pas membre de ce magasin"))
+                }
+
+                // Chercher le panier unique du magasin (panier collaboratif)
                 val existingCart = supabaseClient
                     .from("cart")
                     .select(columns = Columns.ALL) {
                         filter {
                             eq("store_id", storeId)
-                            eq("owned_by", currentUser.id)
                         }
                     }
                     .decodeSingleOrNull<Cart>()
@@ -41,10 +47,11 @@ class CartRepository {
                     return@withContext Result.success(existingCart)
                 }
                 
-                // Si aucun panier n'existe, en créer un nouveau
+                // Si aucun panier n'existe pour ce magasin, en créer un
+                // Le premier membre à accéder au magasin crée le panier collaboratif
                 val newCartData = InsertCartRequest(
                     storeId = storeId,
-                    ownedBy = currentUser.id
+                    ownedBy = currentUser.id // Créateur initial, mais accessible à tous les membres
                 )
                 
                 val createdCart = supabaseClient
@@ -54,6 +61,7 @@ class CartRepository {
                     }
                     .decodeSingle<Cart>()
                 
+                Log.i("CartRepository", "Panier collaboratif créé pour le magasin $storeId")
                 Result.success(createdCart)
                 
             } catch (e: Exception) {
@@ -81,32 +89,15 @@ class CartRepository {
                     .decodeSingleOrNull<CartItem>()
                 
                 if (existingItem != null) {
-                    // Mettre à jour la quantité si l'item existe déjà
-                    val updatedItemData = InsertCartItemRequest(
-                        productId = existingItem.productId,
-                        quantity = existingItem.quantity + request.quantity,
-                        cartId = existingItem.cartId,
-                        description = request.description.ifEmpty { existingItem.description }
-                    )
                     
-                    val updated = supabaseClient
-                        .from("cart_items")
-                        .update(updatedItemData) {
-                            filter {
-                                eq("id", existingItem.id)
-                            }
-                            select(Columns.ALL)
-                        }
-                        .decodeSingle<CartItem>()
-                    
-                    Result.success(updated)
+                    // throw error
+                    Result.failure(Exception("Ce produit est déjà dans le panier."))
                 } else {
                     // Créer un nouvel item
                     val newItemData = InsertCartItemRequest(
                         productId = request.productId,
                         quantity = request.quantity,
                         cartId = cartId,
-                        description = request.description
                     )
                     
                     val createdItem = supabaseClient
