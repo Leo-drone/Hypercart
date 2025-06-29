@@ -10,6 +10,12 @@ sealed class NavRoutes(val route: String) {
     object StoreDetail : NavRoutes("store_detail/{storeId}") {
         fun createRoute(storeId: String) = "store_detail/$storeId"
     }
+    object StoreProducts : NavRoutes("store_products/{storeId}") {
+        fun createRoute(storeId: String) = "store_products/$storeId"
+    }
+    object Cart : NavRoutes("cart/{storeId}") {
+        fun createRoute(storeId: String) = "cart/$storeId"
+    }
     object ResetPassword : NavRoutes("new-password")
     object NewPassword : NavRoutes("reset-password") {
         const val TOKEN_ARG = "token"

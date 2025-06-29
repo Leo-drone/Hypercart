@@ -43,10 +43,12 @@ import com.google.accompanist.navigation.animation.composable
 import com.hypercart.config.SecureConfig
 import com.hypercart.navigation.NavRoutes
 import com.hypercart.ui.screens.AddStoreScreen
+import com.hypercart.ui.screens.CartScreen
 import com.hypercart.ui.screens.HomeScreen
 import com.hypercart.ui.screens.LoginScreen
 import com.hypercart.ui.screens.RegisterScreen
 import com.hypercart.ui.screens.StoreDetailScreen
+import com.hypercart.ui.screens.StoreProductsScreen
 import com.hypercart.ui.theme.HypercartTheme
 import com.hypercart.ui.theme.blueSkye
 import com.hypercart.ui.theme.darkGray
@@ -112,6 +114,22 @@ fun HypercartApp(startToken: String? = null, email: String? = null) {
             ) { backStackEntry ->
                 val storeId = backStackEntry.arguments?.getString("storeId") ?: ""
                 StoreDetailScreen(navController, storeId)
+            }
+
+            composable(
+                route = NavRoutes.StoreProducts.route,
+                arguments = listOf(navArgument("storeId") { defaultValue = "" })
+            ) { backStackEntry ->
+                val storeId = backStackEntry.arguments?.getString("storeId") ?: ""
+                StoreProductsScreen(navController, storeId)
+            }
+
+            composable(
+                route = NavRoutes.Cart.route,
+                arguments = listOf(navArgument("storeId") { defaultValue = "" })
+            ) { backStackEntry ->
+                val storeId = backStackEntry.arguments?.getString("storeId") ?: ""
+                CartScreen(navController, storeId)
             }
 
             composable(route = NavRoutes.ResetPassword.route) {
