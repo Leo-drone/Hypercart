@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -106,13 +107,27 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold
                 )
                 
-                // Remplacement du FloatingActionButton par GlassIconButton
-                GlassIconButton(
-                    icon = Icons.Default.Add,
-                    onClick = { navController.navigate(NavRoutes.AddStore.route) },
-                    modifier = Modifier.size(56.dp),
-                    tint = blueSkye
-                )
+                // Boutons d'action
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Bouton paramètres utilisateur
+                    GlassIconButton(
+                        icon = Icons.Default.Settings,
+                        onClick = { navController.navigate(NavRoutes.UserSettings.route) },
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.White
+                    )
+                    
+                    // Bouton d'ajout de magasin
+                    GlassIconButton(
+                        icon = Icons.Default.Add,
+                        onClick = { navController.navigate(NavRoutes.AddStore.route) },
+                        modifier = Modifier.size(56.dp),
+                        tint = blueSkye
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

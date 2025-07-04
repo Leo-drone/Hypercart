@@ -50,6 +50,7 @@ import com.hypercart.ui.screens.StoreSettingsScreen
 import com.hypercart.ui.screens.RegisterScreen
 import com.hypercart.ui.screens.StoreDetailScreen
 import com.hypercart.ui.screens.StoreProductsScreen
+import com.hypercart.ui.screens.UserSettingsScreen
 import com.hypercart.ui.theme.HypercartTheme
 import com.hypercart.ui.theme.blueSkye
 import com.hypercart.ui.theme.darkGray
@@ -139,6 +140,10 @@ fun HypercartApp(startToken: String? = null, email: String? = null) {
             ) { backStackEntry ->
                 val storeId = backStackEntry.arguments?.getString("storeId") ?: ""
                 StoreSettingsScreen(navController, storeId)
+            }
+
+            composable(route = NavRoutes.UserSettings.route) {
+                UserSettingsScreen(navController)
             }
 
             composable(route = NavRoutes.ResetPassword.route) {

@@ -16,6 +16,9 @@ import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.createSupabaseClient
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
@@ -177,6 +180,153 @@ class AuthManager(private val context: Context) {
             emit(AuthResponse.Error("Une erreur est survenue lors de la connexion. Veuillez réessayer."))
         }
 
+    }
+
+    fun signOut(): Flow<AuthResponse> = flow {
+        try {
+            supabase.auth.signOut()
+            emit(AuthResponse.Success)
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Erreur déconnexion", e)
+            emit(AuthResponse.Error(resolveAuthError(e)))
+        }
+    }
+
+    fun getCurrentUser(): Flow<AuthResponse> = flow {
+        try {
+            val currentUser = supabase.auth.currentUserOrNull()
+            if (currentUser != null) {
+                emit(AuthResponse.Success)
+            } else {
+                emit(AuthResponse.Error("Aucun utilisateur connecté"))
+            }
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Erreur récupération utilisateur", e)
+            emit(AuthResponse.Error(resolveAuthError(e)))
+        }
+    }
+
+    fun updateUserName(newName: String): Flow<AuthResponse> = flow {
+        try {
+            supabase.auth.updateUser {
+                data = buildJsonObject {
+                    put("full_name", newName)
+                }
+            }
+            emit(AuthResponse.Success)
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Erreur mise à jour nom", e)
+            emit(AuthResponse.Error(resolveAuthError(e)))
+        }
+    }
+
+    fun getUserEmail(): String? {
+        val currentUser = supabase.auth.currentUserOrNull()
+        if (currentUser == null) {
+            Log.w("AuthManager", "Aucun utilisateur connecté pour récupérer l'email")
+            return null
+        }
+        
+        val email = currentUser.email
+        Log.i("AuthManager", "Email récupéré: $email (User ID: ${currentUser.id})")
+        return email
+    }
+
+    fun getUserName(): String? {
+        val currentUser = supabase.auth.currentUserOrNull()
+        if (currentUser == null) {
+            Log.w("AuthManager", "Aucun utilisateur connecté pour récupérer le nom")
+            return null
+        }
+        
+        Log.i("AuthManager", "Utilisateur connecté - ID: ${currentUser.id}, Email: ${currentUser.email}")
+        
+        // Essayer d'abord les userMetadata
+        val nameFromMetadata = currentUser.userMetadata?.get("full_name")?.let { jsonElement ->
+            try {
+                jsonElement.jsonPrimitive.content
+            } catch (e: Exception) {
+                jsonElement.toString().removeSurrounding("\"")
+            }
+        }
+        Log.i("AuthManager", "Nom depuis userMetadata: '$nameFromMetadata'")
+        
+        if (!nameFromMetadata.isNullOrEmpty() && nameFromMetadata != "null") {
+            return nameFromMetadata
+        }
+        
+        // Si pas dans userMetadata, essayer dans les identities (pour Google)
+        currentUser.identities?.forEach { identity ->
+            Log.i("AuthManager", "Identity trouvée: ${identity.provider}")
+            Log.i("AuthManager", "Identity data: ${identity.identityData}")
+        }
+        
+        val nameFromIdentities = currentUser.identities?.firstOrNull()?.let { identity ->
+            val fullName = identity.identityData?.get("full_name")?.let { jsonElement ->
+                try {
+                    jsonElement.jsonPrimitive.content
+                } catch (e: Exception) {
+                    jsonElement.toString().removeSurrounding("\"")
+                }
+            }
+            val name = identity.identityData?.get("name")?.let { jsonElement ->
+                try {
+                    jsonElement.jsonPrimitive.content
+                } catch (e: Exception) {
+                    jsonElement.toString().removeSurrounding("\"")
+                }
+            }
+            Log.i("AuthManager", "Noms depuis identity - full_name: '$fullName', name: '$name'")
+            fullName ?: name
+        }
+        
+        Log.i("AuthManager", "Nom final retourné: '$nameFromIdentities'")
+        return nameFromIdentities
+    }
+    
+    fun isUserLoggedIn(): Boolean {
+        val user = supabase.auth.currentUserOrNull()
+        val isLoggedIn = user != null
+        Log.i("AuthManager", "Utilisateur connecté: $isLoggedIn")
+        if (isLoggedIn) {
+            Log.i("AuthManager", "Détails utilisateur - ID: ${user?.id}, Email: ${user?.email}")
+        }
+        return isLoggedIn
+    }
+    
+    fun debugUserState() {
+        val user = supabase.auth.currentUserOrNull()
+        if (user == null) {
+            Log.w("AuthManager", "DEBUG: Aucun utilisateur connecté")
+            return
+        }
+        
+        Log.i("AuthManager", "DEBUG: Utilisateur connecté")
+        Log.i("AuthManager", "DEBUG: ID = ${user.id}")
+        Log.i("AuthManager", "DEBUG: Email = ${user.email}")
+        Log.i("AuthManager", "DEBUG: UserMetadata = ${user.userMetadata}")
+        Log.i("AuthManager", "DEBUG: Identities = ${user.identities}")
+        Log.i("AuthManager", "DEBUG: Nombre d'identities = ${user.identities?.size}")
+        
+        user.identities?.forEachIndexed { index, identity ->
+            Log.i("AuthManager", "DEBUG: Identity $index - Provider: ${identity.provider}")
+            Log.i("AuthManager", "DEBUG: Identity $index - Data: ${identity.identityData}")
+        }
+    }
+
+    fun getUserId(): String? {
+        return supabase.auth.currentUserOrNull()?.id
+    }
+    
+    suspend fun refreshUserSession(): Result<Unit> {
+        return try {
+            supabase.auth.refreshCurrentSession()
+            Log.i("AuthManager", "Session utilisateur rafraîchie")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("AuthManager", "Erreur lors du rafraîchissement de session: ${e.message}")
+            Result.failure(e)
+        }
     }
 }
 

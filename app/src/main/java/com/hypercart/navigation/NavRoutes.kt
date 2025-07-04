@@ -19,6 +19,7 @@ sealed class NavRoutes(val route: String) {
     object StoreSettings : NavRoutes("store_settings/{storeId}") {
         fun createRoute(storeId: String) = "store_settings/$storeId"
     }
+    object UserSettings : NavRoutes("user_settings")
     object ResetPassword : NavRoutes("new-password")
     object NewPassword : NavRoutes("reset-password") {
         const val TOKEN_ARG = "token"
