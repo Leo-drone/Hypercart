@@ -116,3 +116,55 @@ data class CreateStoreMemberRequest(
     val userId: String,
     val role: String = "member"
 )
+
+@Serializable
+data class StoreCategoryOrder(
+    @SerialName("category_id")
+    val categoryId: Long,
+    @SerialName("store_id") 
+    val storeId: Long,
+    @SerialName("order_id")
+    val orderId: Int
+)
+
+@Serializable
+data class CategoryWithOrder(
+    val id: Long,
+    val name: String,
+    @SerialName("order_id")
+    val orderId: Int? = null
+)
+
+@Serializable
+data class CreateCategoryOrderRequest(
+    @SerialName("category_id")
+    val categoryId: Long,
+    @SerialName("store_id")
+    val storeId: Long,
+    @SerialName("order_id")
+    val orderId: Int
+)
+
+@Serializable
+data class UpdateCategoryOrderRequest(
+    @SerialName("order_id")
+    val orderId: Int
+)
+
+@Serializable
+data class CategoryWithProducts(
+    val id: Long,
+    val name: String,
+    @SerialName("order_id")
+    val orderId: Int?,
+    val products: List<Product> = emptyList()
+)
+
+@Serializable
+data class CategoryWithCartItems(
+    val id: Long,
+    val name: String,
+    @SerialName("order_id")
+    val orderId: Int?,
+    val cartItems: List<CartItem> = emptyList()
+)

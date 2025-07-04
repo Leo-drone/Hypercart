@@ -95,6 +95,9 @@ fun CartScreen(
     val categories by itemViewModel.categories.collectAsState()
     val products by itemViewModel.products.collectAsState()
     val productSuggestions by itemViewModel.productSuggestions.collectAsState()
+    val categorySuggestions by itemViewModel.categorySuggestions.collectAsState()
+    val categoriesWithCartItems by itemViewModel.categoriesWithCartItems.collectAsState()
+    val isCartGroupedByCategory by itemViewModel.isCartGroupedByCategory.collectAsState()
     
     var showAddItemModal by remember { mutableStateOf(false) }
     var previousCartItemCount by remember { mutableStateOf(0) }
@@ -152,6 +155,14 @@ fun CartScreen(
         itemViewModel.loadCategories() // Pour le dropdown
     }
     
+    // Grouper les produits du panier par catégorie quand le panier change
+    LaunchedEffect(currentCart?.items) {
+        val storeIdLong = storeId.toLongOrNull() ?: 0L
+        if (isCartGroupedByCategory) {
+            itemViewModel.groupCartItemsByCategory(storeIdLong)
+        }
+    }
+    
     // Fermer la modal quand un produit est ajouté avec succès
     LaunchedEffect(currentCart?.items?.size) {
         val currentItemCount = currentCart?.items?.size ?: 0
@@ -206,7 +217,9 @@ fun CartScreen(
                 },
                 actions = {
                     // Bouton Paramètres
-                    IconButton(onClick = { /* TODO: Ouvrir paramètres */ }) {
+                    IconButton(onClick = { 
+                        navController.navigate("store_settings/$storeId")
+                    }) {
                         Icon(
                             Icons.Default.Settings,
                             contentDescription = "Paramètres",
@@ -296,32 +309,81 @@ fun CartScreen(
                             }
                         }
                     } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(currentCart!!.items) { cartItem ->
-                                CartItemCard(
-                                    cartItem = cartItem,
-                                    products = products,
-                                    isChecked = checkedItems.contains(cartItem.id),
-                                    onCheckedChange = { isChecked ->
-                                        checkedItems = if (isChecked) {
-                                            checkedItems + cartItem.id
-                                        } else {
-                                            checkedItems - cartItem.id
-                                        }
-                                    },
-                                    onUpdateQuantity = { newQuantity ->
-                                        itemViewModel.updateCartItemQuantity(cartItem.id, newQuantity)
-                                    },
-                                    onFocusChange = { isFocused ->
-                                        anyFieldFocused = isFocused
+                        if (isCartGroupedByCategory) {
+                            // Affichage groupé par catégorie
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                categoriesWithCartItems.forEach { categoryWithCartItems ->
+                                    // Titre de la catégorie
+                                    item {
+                                        Text(
+                                            text = categoryWithCartItems.name,
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = blueSkye,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                        )
                                     }
-                                )
+                                    
+                                    // Produits de cette catégorie
+                                    categoryWithCartItems.cartItems.forEach { cartItem ->
+                                        item {
+                                            CartItemCard(
+                                                cartItem = cartItem,
+                                                products = products,
+                                                isChecked = checkedItems.contains(cartItem.id),
+                                                onCheckedChange = { isChecked ->
+                                                    checkedItems = if (isChecked) {
+                                                        checkedItems + cartItem.id
+                                                    } else {
+                                                        checkedItems - cartItem.id
+                                                    }
+                                                },
+                                                onUpdateQuantity = { newQuantity ->
+                                                    itemViewModel.updateCartItemQuantity(cartItem.id, newQuantity)
+                                                },
+                                                onFocusChange = { isFocused ->
+                                                    anyFieldFocused = isFocused
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
                             }
-                            
-                            item {
-                                Spacer(modifier = Modifier.height(16.dp))
+                        } else {
+                            // Affichage simple
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(currentCart!!.items) { cartItem ->
+                                    CartItemCard(
+                                        cartItem = cartItem,
+                                        products = products,
+                                        isChecked = checkedItems.contains(cartItem.id),
+                                        onCheckedChange = { isChecked ->
+                                            checkedItems = if (isChecked) {
+                                                checkedItems + cartItem.id
+                                            } else {
+                                                checkedItems - cartItem.id
+                                            }
+                                        },
+                                        onUpdateQuantity = { newQuantity ->
+                                            itemViewModel.updateCartItemQuantity(cartItem.id, newQuantity)
+                                        },
+                                        onFocusChange = { isFocused ->
+                                            anyFieldFocused = isFocused
+                                        }
+                                    )
+                                }
+                                
+                                item {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
                             }
                         }
                     }
@@ -338,6 +400,7 @@ fun CartScreen(
                 showAddItemModal = false
                 itemViewModel.clearNeedsCategoryInput()
                 itemViewModel.clearProductSuggestions()
+                itemViewModel.clearCategorySuggestions()
             },
             onAddItem = { productName, quantity, categoryName ->
                 val storeIdLong = storeId.toLongOrNull() ?: 0L
@@ -361,13 +424,17 @@ fun CartScreen(
             },
             onSelectProduct = { product ->
                 // Remplir les champs avec le produit sélectionné
-
-
-
-
                 itemViewModel.clearProductSuggestions()
             },
+            onSearchCategories = { query ->
+                itemViewModel.searchCategorySuggestions(query)
+            },
+            onSelectCategory = { category ->
+                // Remplir le champ catégorie avec la catégorie sélectionnée
+                itemViewModel.clearCategorySuggestions()
+            },
             productSuggestions = productSuggestions,
+            categorySuggestions = categorySuggestions,
             needsCategoryInput = needsCategoryInput
         )
     }

@@ -77,6 +77,8 @@ fun StoreProductsScreen(
 ) {
     val products by itemViewModel.products.collectAsState()
     val categories by itemViewModel.categories.collectAsState()
+    val categoriesWithProducts by itemViewModel.categoriesWithProducts.collectAsState()
+    val isGroupedByCategory by itemViewModel.isGroupedByCategory.collectAsState()
     val selectedCategory by itemViewModel.selectedCategory.collectAsState()
     val cartItemCount by itemViewModel.cartItemCount.collectAsState()
     val isLoading by itemViewModel.isLoading.collectAsState()
@@ -204,92 +206,156 @@ fun StoreProductsScreen(
                         .padding(16.dp)
                         .padding(top = 16.dp)
                 ) {
-                    // Filtres par catégorie
-                    if (categories.isNotEmpty()) {
-                        Text(
-                            text = "Catégories",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            item {
-                                FilterChip(
-                                    onClick = { 
-                                        val storeIdLong = storeId.toLongOrNull() ?: 0L
-                                        itemViewModel.loadAllProducts(storeIdLong) 
-                                    },
-                                    label = { Text("Tous") },
-                                    selected = selectedCategory == null,
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = blueSkye,
-                                        selectedLabelColor = Color.White,
-                                        containerColor = darkGray,
-                                        labelColor = Color.White
-                                    )
-                                )
-                            }
-                            items(categories) { category ->
-                                CategoryChip(
-                                    category = category,
-                                    isSelected = selectedCategory == category.id,
-                                    onClick = { 
-                                        val storeIdLong = storeId.toLongOrNull() ?: 0L
-                                        itemViewModel.loadProductsByCategory(category.id, storeIdLong) 
-                                    }
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-                    // Liste des produits
-                    if (products.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
+                    // Affichage conditionnel selon le mode groupé ou non
+                    if (isGroupedByCategory) {
+                        // Mode groupé par catégorie
+                        if (categoriesWithProducts.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                GlassIcon(
-                                    imageVector = Icons.Default.Category,
-                                    modifier = Modifier.size(80.dp),
-                                    tint = Color.White.copy(alpha = 0.7f)
-                                )
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                Text(
-                                    text = "Aucun produit",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = Color.White.copy(alpha = 0.9f)
-                                )
-                                
-                                Text(
-                                    text = "Aucun produit trouvé dans cette catégorie",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.7f)
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    GlassIcon(
+                                        imageVector = Icons.Default.Category,
+                                        modifier = Modifier.size(80.dp),
+                                        tint = Color.White.copy(alpha = 0.7f)
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    Text(
+                                        text = "Aucun produit",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = Color.White.copy(alpha = 0.9f)
+                                    )
+                                    
+                                    Text(
+                                        text = "Aucun produit trouvé dans ce magasin",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                categoriesWithProducts.forEach { categoryWithProducts ->
+                                    // Titre de la catégorie
+                                    item {
+                                        Text(
+                                            text = categoryWithProducts.name,
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = blueSkye,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                                        )
+                                    }
+                                    
+                                    // Produits de cette catégorie
+                                    categoryWithProducts.products.forEach { product ->
+                                        item {
+                                            ProductCard(
+                                                product = product,
+                                                onAddToCart = { 
+                                                    itemViewModel.addToCart(product.id, 1)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(products) { product ->
-                                ProductCard(
-                                    product = product,
-                                    onAddToCart = { 
-                                        itemViewModel.addToCart(product.id, 1)
-                                    }
-                                )
+                        // Mode normal avec filtres par catégorie
+                        if (categories.isNotEmpty()) {
+                            Text(
+                                text = "Catégories",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                item {
+                                    FilterChip(
+                                        onClick = { 
+                                            val storeIdLong = storeId.toLongOrNull() ?: 0L
+                                            itemViewModel.loadAllProducts(storeIdLong) 
+                                        },
+                                        label = { Text("Tous") },
+                                        selected = selectedCategory == null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = blueSkye,
+                                            selectedLabelColor = Color.White,
+                                            containerColor = darkGray,
+                                            labelColor = Color.White
+                                        )
+                                    )
+                                }
+                                items(categories) { category ->
+                                    CategoryChip(
+                                        category = category,
+                                        isSelected = selectedCategory == category.id,
+                                        onClick = { 
+                                            val storeIdLong = storeId.toLongOrNull() ?: 0L
+                                            itemViewModel.loadProductsByCategory(category.id, storeIdLong) 
+                                        }
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // Liste des produits en mode normal
+                        if (products.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    GlassIcon(
+                                        imageVector = Icons.Default.Category,
+                                        modifier = Modifier.size(80.dp),
+                                        tint = Color.White.copy(alpha = 0.7f)
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    Text(
+                                        text = "Aucun produit",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = Color.White.copy(alpha = 0.9f)
+                                    )
+                                    
+                                    Text(
+                                        text = "Aucun produit trouvé dans cette catégorie",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(products) { product ->
+                                    ProductCard(
+                                        product = product,
+                                        onAddToCart = { 
+                                            itemViewModel.addToCart(product.id, 1)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

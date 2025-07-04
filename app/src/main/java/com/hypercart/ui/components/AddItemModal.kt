@@ -60,7 +60,10 @@ fun AddItemModal(
     onAddItem: (String, Int, String?) -> Unit, // nom, quantité, catégorie (si nécessaire)
     onSearchProducts: (String) -> Unit = {},
     onSelectProduct: (com.hypercart.data.Product) -> Unit = {},
+    onSearchCategories: (String) -> Unit = {},
+    onSelectCategory: (com.hypercart.data.Category) -> Unit = {},
     productSuggestions: List<com.hypercart.data.Product> = emptyList(),
+    categorySuggestions: List<com.hypercart.data.Category> = emptyList(),
     needsCategoryInput: Pair<String, Int>? = null // produit et quantité qui ont besoin d'une catégorie
 ) {
     var itemName by remember { mutableStateOf("") }
@@ -69,6 +72,7 @@ fun AddItemModal(
     var showCategoryInput by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var selectedProduct by remember { mutableStateOf<com.hypercart.data.Product?>(null) }
+    var selectedCategory by remember { mutableStateOf<com.hypercart.data.Category?>(null) }
     
     // Réagir aux changements de needsCategoryInput
     LaunchedEffect(needsCategoryInput) {
@@ -78,6 +82,7 @@ fun AddItemModal(
             itemQuantity = needsCategoryInput.second.toString()
             showCategoryInput = true
             categoryName = ""
+            selectedCategory = null
             isLoading = false // Importante : débloquer les champs
         } else {
             showCategoryInput = false
@@ -162,6 +167,7 @@ fun AddItemModal(
                                         categoryName = ""
                                         showCategoryInput = false
                                         selectedProduct = null
+                                        selectedCategory = null
                                         onDismiss()
                                     }) {
                                         Icon(
@@ -339,9 +345,26 @@ fun AddItemModal(
                                         
                                         Spacer(modifier = Modifier.height(8.dp))
                                         
+                                        Text(
+                                            text = if (selectedCategory != null) "Catégorie sélectionnée ✓" else "Catégorie",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (selectedCategory != null) blueSkye else Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
                                         OutlinedTextField(
                                             value = categoryName,
-                                            onValueChange = { categoryName = it },
+                                            onValueChange = { newValue ->
+                                                categoryName = newValue
+                                                // Réinitialiser la catégorie sélectionnée si on tape manuellement
+                                                selectedCategory = null
+                                                // Déclencher la recherche d'autocomplétion
+                                                if (newValue.isNotBlank()) {
+                                                    onSearchCategories(newValue)
+                                                }
+                                            },
                                             placeholder = { 
                                                 Text(
                                                     "Ex: Électronique, Alimentation...",
@@ -360,6 +383,64 @@ fun AddItemModal(
                                             ),
                                             enabled = !isLoading
                                         )
+                                        
+                                        // Suggestions d'autocomplétion pour les catégories
+                                        if (categorySuggestions.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            
+                                            Text(
+                                                text = "Catégories suggérées :",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            
+                                            LazyColumn(
+                                                modifier = Modifier.height(150.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                items(categorySuggestions) { category ->
+                                                    Card(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable {
+                                                                // Remplir le champ avec la catégorie sélectionnée
+                                                                categoryName = category.name
+                                                                selectedCategory = category
+                                                                onSelectCategory(category)
+                                                            },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        colors = CardDefaults.cardColors(
+                                                            containerColor = Color.White.copy(alpha = 0.1f)
+                                                        )
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(12.dp),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                text = category.name,
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = Color.White,
+                                                                modifier = Modifier.weight(1f)
+                                                            )
+                                                            
+                                                            Icon(
+                                                                Icons.Default.Add,
+                                                                contentDescription = "Sélectionner",
+                                                                tint = blueSkye,
+                                                                modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 
@@ -377,6 +458,7 @@ fun AddItemModal(
                                             categoryName = ""
                                             showCategoryInput = false
                                             selectedProduct = null
+                                            selectedCategory = null
                                             onDismiss()
                                         },
                                         modifier = Modifier.weight(1f)
@@ -404,6 +486,7 @@ fun AddItemModal(
                                                         itemQuantity = "1"
                                                         categoryName = ""
                                                         showCategoryInput = false
+                                                        selectedCategory = null
                                                         isLoading = false
                                                         onDismiss()
                                                     }
@@ -418,6 +501,7 @@ fun AddItemModal(
                                                         itemName = ""
                                                         itemQuantity = "1"
                                                         selectedProduct = null
+                                                        selectedCategory = null
                                                         isLoading = false
                                                         onDismiss()
                                                     } else {
