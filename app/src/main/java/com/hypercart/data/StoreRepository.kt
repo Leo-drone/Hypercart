@@ -297,4 +297,44 @@ suspend fun getAllStores(): Result<List<Store>> {
             }
         }
     }
+    
+    suspend fun updateStoreName(storeId: Long, newName: String): Result<Store> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val currentUser = supabaseClient.auth.currentUserOrNull()
+                    ?: return@withContext Result.failure(Exception("Vous devez être connecté pour modifier le magasin"))
+                
+                // Vérifier si l'utilisateur est propriétaire ou admin du magasin
+                val member = supabaseClient
+                    .from("store_members")
+                    .select(columns = Columns.ALL) {
+                        filter {
+                            eq("store_id", storeId)
+                            eq("user_id", currentUser.id)
+                        }
+                    }
+                    .decodeSingleOrNull<StoreMember>()
+                
+                if (member == null || (member.role != "owner" && member.role != "admin")) {
+                    return@withContext Result.failure(Exception("Vous n'avez pas les permissions pour modifier ce magasin"))
+                }
+                
+                val updatedStore = supabaseClient
+                    .from("store")
+                    .update(mapOf("name" to newName)) {
+                        filter {
+                            eq("id", storeId)
+                        }
+                        select(Columns.ALL)
+                    }
+                    .decodeSingle<Store>()
+                
+                Log.i("StoreRepository", "Nom du magasin $storeId mis à jour: $newName")
+                Result.success(updatedStore)
+            } catch (e: Exception) {
+                Log.e("StoreRepository", "Erreur lors de la mise à jour du nom: ${e.message}")
+                Result.failure(Exception("Impossible de modifier le nom du magasin. Veuillez réessayer."))
+            }
+        }
+    }
 } 

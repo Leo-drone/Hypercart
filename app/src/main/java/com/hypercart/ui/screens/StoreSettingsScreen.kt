@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -18,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -27,10 +30,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.hypercart.DialogAlert
 import com.hypercart.GradientScreen
+import com.hypercart.SuccessDialog
 import com.hypercart.data.CategoryWithOrder
 import com.hypercart.ui.theme.blueSkye
 import com.hypercart.ui.theme.darkGray
@@ -54,6 +60,16 @@ fun StoreSettingsScreen(
     var isSaving by remember { mutableStateOf(false) }
     val selectedStore by storeViewModel.selectedStore.collectAsState()
     
+    // États pour la modification du nom du magasin
+    var storeName by remember { mutableStateOf("") }
+    var isEditingStoreName by remember { mutableStateOf(false) }
+    var isSavingStoreName by remember { mutableStateOf(false) }
+    
+    // États pour les erreurs et messages de succès
+    val error by storeViewModel.error.collectAsState()
+    val isStoreLoading by storeViewModel.isLoading.collectAsState()
+    var successMessage by remember { mutableStateOf<String?>(null) }
+    
     val listState = rememberLazyListState()
     val dragDropState = rememberDragDropState(listState) { fromIndex, toIndex ->
         categories = categories.toMutableList().apply {
@@ -70,6 +86,13 @@ fun StoreSettingsScreen(
     LaunchedEffect(itemViewModel.categoriesWithOrder.collectAsState().value) {
         categories = itemViewModel.categoriesWithOrder.value
         isLoading = false
+    }
+    
+    // Initialiser le nom du magasin quand les données sont chargées
+    LaunchedEffect(selectedStore) {
+        selectedStore?.let { store ->
+            storeName = store.name
+        }
     }
 
     Scaffold(
@@ -117,6 +140,162 @@ fun StoreSettingsScreen(
                 Column(
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    // Section de modification du nom du magasin
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0.1f),
+                                            Color.White.copy(alpha = 0.05f)
+                                        ),
+                                        start = Offset(0f, 0f),
+                                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Nom du magasin",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    
+                                    if (!isEditingStoreName) {
+                                        IconButton(
+                                            onClick = { isEditingStoreName = true }
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Edit,
+                                                contentDescription = "Modifier",
+                                                tint = blueSkye
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                if (isEditingStoreName) {
+                                    OutlinedTextField(
+                                        value = storeName,
+                                        onValueChange = { storeName = it },
+                                        placeholder = { 
+                                            Text(
+                                                "Nom du magasin",
+                                                color = Color.White.copy(alpha = 0.6f)
+                                            ) 
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                        keyboardActions = KeyboardActions(
+                                            onDone = {
+                                                if (storeName.isNotBlank() && storeName != selectedStore?.name) {
+                                                    isSavingStoreName = true
+                                                    storeViewModel.updateStoreName(
+                                                        storeId = storeId.toLongOrNull() ?: 0L,
+                                                        newName = storeName
+                                                    ) {
+                                                        isSavingStoreName = false
+                                                        isEditingStoreName = false
+                                                        successMessage = "Nom du magasin modifié avec succès !"
+                                                    }
+                                                } else {
+                                                    isEditingStoreName = false
+                                                }
+                                            }
+                                        ),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color.White,
+                                            unfocusedTextColor = Color.White,
+                                            focusedBorderColor = blueSkye,
+                                            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                                            cursorColor = blueSkye
+                                        ),
+                                        enabled = !isSavingStoreName
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                storeName = selectedStore?.name ?: ""
+                                                isEditingStoreName = false
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            enabled = !isSavingStoreName,
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = Color.White
+                                            )
+                                        ) {
+                                            Text("Annuler")
+                                        }
+                                        
+                                        Button(
+                                            onClick = {
+                                                if (storeName.isNotBlank() && storeName != selectedStore?.name) {
+                                                    isSavingStoreName = true
+                                                    storeViewModel.updateStoreName(
+                                                        storeId = storeId.toLongOrNull() ?: 0L,
+                                                        newName = storeName
+                                                    ) {
+                                                        isSavingStoreName = false
+                                                        isEditingStoreName = false
+                                                        successMessage = "Nom du magasin modifié avec succès !"
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            enabled = !isSavingStoreName && storeName.isNotBlank() && storeName != selectedStore?.name,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = blueSkye,
+                                                contentColor = Color.White
+                                            )
+                                        ) {
+                                            if (isSavingStoreName) {
+                                                CircularProgressIndicator(
+                                                    color = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            } else {
+                                                Text("Sauvegarder")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = selectedStore?.name ?: "Chargement...",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
                     Text(
                         text = "Réorganiser les catégories",
                         style = MaterialTheme.typography.headlineSmall,
@@ -178,6 +357,22 @@ fun StoreSettingsScreen(
                 }
             }
         }
+    }
+    
+    // Gestion des erreurs
+    error?.let { errorMessage ->
+        DialogAlert(
+            message = errorMessage,
+            onConfirm = { storeViewModel.clearError() }
+        )
+    }
+    
+    // Gestion des messages de succès
+    successMessage?.let { message ->
+        SuccessDialog(
+            message = message,
+            onDismiss = { successMessage = null }
+        )
     }
 }
 

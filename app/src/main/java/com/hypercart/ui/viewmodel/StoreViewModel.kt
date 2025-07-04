@@ -135,4 +135,39 @@ class StoreViewModel : ViewModel() {
     fun clearError() {
         _error.value = null
     }
+    
+    fun updateStoreName(storeId: Long, newName: String, onSuccess: () -> Unit) {
+        if (newName.isBlank()) {
+            _error.value = "Le nom du magasin ne peut pas être vide"
+            return
+        }
+        
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                storeRepository.updateStoreName(storeId, newName.trim())
+                    .onSuccess { updatedStore ->
+                        // Mettre à jour le magasin sélectionné
+                        _selectedStore.value = updatedStore
+                        
+                        // Mettre à jour la liste des magasins
+                        val currentStores = _stores.value.toMutableList()
+                        val storeIndex = currentStores.indexOfFirst { it.id == storeId }
+                        if (storeIndex != -1) {
+                            currentStores[storeIndex] = updatedStore
+                            _stores.value = currentStores
+                        }
+                        
+                        onSuccess()
+                    }
+                    .onFailure { exception ->
+                        _error.value = exception.message ?: "Impossible de modifier le nom du magasin"
+                    }
+            } catch (e: Exception) {
+                _error.value = "Une erreur est survenue lors de la modification du nom"
+            }
+            _isLoading.value = false
+        }
+    }
 } 
